@@ -1,11 +1,11 @@
 /**
  * API Client for BaseSystem
- * Calls backend directly at localhost:8000
+ * Uses environment variable for API URL
  */
 
 const API_BASE_URL = typeof window !== 'undefined'
-  ? 'http://localhost:8000'  // Client-side
-  : 'http://backend:8000'    // Server-side
+  ? (process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000')  // Client-side
+  : (process.env.API_URL || 'http://backend:8000')    // Server-side (for SSR)
 
 interface RequestOptions extends RequestInit {
   token?: string
@@ -14,9 +14,9 @@ interface RequestOptions extends RequestInit {
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { token, ...fetchOptions } = options
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...fetchOptions.headers,
+    ...(fetchOptions.headers as Record<string, string>),
   }
 
   if (token) {

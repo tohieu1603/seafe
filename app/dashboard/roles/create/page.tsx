@@ -55,7 +55,7 @@ export default function CreateRolePage() {
   const fetchPermissions = async () => {
     try {
       const data = await rbacAPI.getPermissions()
-      setPermissions(data)
+      setPermissions(data as Permission[])
     } catch (error) {
       console.error('Failed to fetch permissions:', error)
       setError('Không thể tải danh sách quyền')
@@ -114,7 +114,7 @@ export default function CreateRolePage() {
       const token = localStorage.getItem('token') || ''
 
       // Create role
-      const newRole = await rbacAPI.createRole(formData, token)
+      const newRole = await rbacAPI.createRole(formData, token) as { id: string }
 
       // Assign permissions if any selected
       if (selectedPermissions.size > 0) {

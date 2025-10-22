@@ -77,9 +77,9 @@ export default function UsersPage() {
         rbacAPI.getPermissions()
       ])
 
-      setUsers(usersData)
-      setRoles(rolesData)
-      setPermissions(permissionsData)
+      setUsers(usersData as User[])
+      setRoles(rolesData as Role[])
+      setPermissions(permissionsData as Permission[])
     } catch (error) {
       console.error('Failed to fetch data:', error)
       alert('Không thể tải dữ liệu: ' + (error instanceof Error ? error.message : ''))

@@ -41,10 +41,10 @@ export default function RolePermissionsPage() {
         rbacAPI.getPermissions()
       ])
 
-      setRole(roleData)
-      setAllPermissions(permsData)
+      setRole(roleData as Role)
+      setAllPermissions(permsData as Permission[])
       setSelectedPermissions(
-        new Set(roleData.permissions.map((p: Permission) => p.id))
+        new Set((roleData as Role).permissions.map((p: Permission) => p.id))
       )
     } catch (error) {
       console.error('Failed to fetch data:', error)

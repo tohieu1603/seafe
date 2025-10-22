@@ -49,7 +49,7 @@ export default function RolesPage() {
   const fetchRoles = async () => {
     try {
       const data = await rbacAPI.getRoles()
-      setRoles(data)
+      setRoles(data as Role[])
     } catch (error) {
       console.error('Failed to fetch roles:', error)
       setError('Không thể tải danh sách vai trò')

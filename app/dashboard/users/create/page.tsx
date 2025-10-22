@@ -53,12 +53,10 @@ export default function CreateUserPage() {
 
   const fetchData = async () => {
     try {
-      const [rolesData, departmentsData] = await Promise.all([
-        rbacAPI.getRoles(),
-        rbacAPI.getDepartments(),
-      ])
-      setRoles(rolesData)
-      setDepartments(departmentsData)
+      const rolesData = await rbacAPI.getRoles()
+      setRoles(rolesData as Role[])
+      // TODO: Implement getDepartments API
+      setDepartments([])
     } catch (error) {
       console.error('Failed to fetch data:', error)
       setError('Không thể tải dữ liệu')
@@ -94,27 +92,8 @@ export default function CreateUserPage() {
     setError('')
 
     try {
-      const token = localStorage.getItem('token') || ''
-
-      // Create user
-      const userData = {
-        ...formData,
-        department_id: formData.department_id || undefined,
-      }
-      const newUser = await authAPI.createUser(userData, token)
-
-      // Assign roles if any selected
-      if (selectedRoles.size > 0) {
-        await Promise.all(
-          Array.from(selectedRoles).map(roleId =>
-            rbacAPI.assignRoleToUser({
-              user_id: newUser.id,
-              role_id: roleId,
-            }, token)
-          )
-        )
-      }
-
+      // TODO: Implement createUser API in lib/api.ts
+      alert('Chức năng tạo user chưa được implement. Vui lòng sử dụng trang Users để quản lý.')
       router.push('/dashboard/users')
     } catch (error: any) {
       setError(error.message || 'Không thể tạo người dùng')

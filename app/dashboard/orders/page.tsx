@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { ordersAPI, formatCurrency, formatWeight, Order } from '@/lib/seafood-api';
-import { ShoppingCart, Search, Filter, X, ChevronDown, ChevronRight, Phone, User, MapPin } from 'lucide-react';
+import { ShoppingCart, Search, Filter, X, ChevronDown, ChevronRight, Phone, User, MapPin, Eye } from 'lucide-react';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -232,7 +233,7 @@ export default function OrdersPage() {
               </div>
             ) : (
               paginatedOrders.map((order) => (
-                <div key={order.id} className="p-4">
+                <Link key={order.id} href={`/dashboard/orders/${order.id}`} className="block p-4 hover:bg-slate-50 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm font-mono font-semibold text-indigo-600">{order.order_code}</p>
@@ -293,7 +294,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </Link>
               ))
             )}
           </div>
@@ -342,9 +343,13 @@ export default function OrdersPage() {
                             </button>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm font-mono font-semibold text-indigo-600">
+                            <Link
+                              href={`/dashboard/orders/${order.id}`}
+                              className="text-sm font-mono font-semibold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
+                            >
                               {order.order_code}
-                            </span>
+                              <Eye className="w-3.5 h-3.5" />
+                            </Link>
                           </td>
                           <td className="px-4 py-3">
                             <p className="text-sm text-slate-900">{order.customer_name || '-'}</p>

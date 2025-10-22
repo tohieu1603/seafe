@@ -35,7 +35,7 @@ export default function PermissionsPage() {
   const fetchPermissions = async () => {
     try {
       const data = await rbacAPI.getPermissions()
-      setPermissions(data)
+      setPermissions(data as Permission[])
     } catch (error) {
       console.error('Failed to fetch permissions:', error)
       alert('Không thể tải danh sách quyền hạn')
