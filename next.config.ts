@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   async rewrites() {
     // Use environment variable for API backend
-    const apiUrl = process.env.API_BACKEND_URL || 'http://backend:8000'
+    // Note: apiUrl should include /api in the URL, e.g., http://localhost:8003
+    const apiUrl = process.env.API_BACKEND_URL || 'http://localhost:8003'
 
     return [
       {

@@ -2,7 +2,7 @@
  * API client cho hệ thống bán hải sản
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003'}/api`;
 
 // ============================================
 // TYPES
@@ -23,6 +23,8 @@ export interface Seafood {
   name: string;
   category_id?: string;
   category?: Category;
+  unit_type: 'kg' | 'piece' | 'box';
+  avg_unit_weight?: number;
   current_price: number;
   stock_quantity: number;
   description?: string;
@@ -63,6 +65,7 @@ export interface OrderItem {
   seafood_id: string;
   seafood?: Seafood;
   import_batch_id?: string;
+  quantity?: number;
   weight: number;
   unit_price: number;
   subtotal?: number;

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { productsAPI, ordersAPI, categoriesAPI, formatCurrency, Seafood, Category, OrderItem } from '@/lib/seafood-api';
-import { Search, Plus, Trash2, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X } from 'lucide-react';
+import { Search, Plus, Trash2, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X, Check, Package, CheckSquare, Square } from 'lucide-react';
 
+// Helper để format đơn vị
 const getUnitLabel = (unitType: string) => {
   switch (unitType) {
     case 'piece': return 'con';
@@ -12,7 +13,7 @@ const getUnitLabel = (unitType: string) => {
   }
 };
 
-export default function POSPage() {
+export default function POSPageV2() {
   const [products, setProducts] = useState<Seafood[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<OrderItem[]>([]);
@@ -20,18 +21,20 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   // Multi-select modal
-  const [showProductSelect, setShowProductSelect] = useState(false);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
   // Customer info
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  const [paymentStatus, setPaymentStatus] = useState<string>('pending');
   const [discount, setDiscount] = useState<number>(0);
   const [orderNotes, setOrderNotes] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -47,6 +50,7 @@ export default function POSPage() {
       setCategories(categoriesData);
     } catch (error) {
       console.error('Failed to load data:', error);
+      alert('Không thể tải dữ liệu. Vui lòng thử lại!');
     }
   };
 
@@ -58,25 +62,28 @@ export default function POSPage() {
     return matchSearch && matchCategory;
   });
 
-  // Toggle product selection
+  // Toggle product selection in modal
   const toggleProductSelection = (productId: string) => {
-    if (selectedProductIds.includes(productId)) {
-      setSelectedProductIds(selectedProductIds.filter(id => id !== productId));
+    const newSelected = new Set(selectedProductIds);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
     } else {
-      setSelectedProductIds([...selectedProductIds, productId]);
+      newSelected.add(productId);
     }
+    setSelectedProductIds(newSelected);
   };
 
-  // Add selected products to cart
+  // Add selected products to cart (without quantity/weight - will be filled in table)
   const addSelectedToCart = () => {
-    if (selectedProductIds.length === 0) {
+    if (selectedProductIds.size === 0) {
       alert('Vui lòng chọn ít nhất 1 sản phẩm!');
       return;
     }
 
-    const newItems: OrderItem[] = selectedProductIds
-      .map(id => {
-        const product = products.find(p => p.id === id);
+    // Add selected products to cart with default values
+    const newItems: OrderItem[] = Array.from(selectedProductIds)
+      .map(productId => {
+        const product = products.find(p => p.id === productId);
         if (!product) return null;
 
         return {
@@ -91,8 +98,8 @@ export default function POSPage() {
       .filter((item): item is OrderItem => item !== null);
 
     setCart([...cart, ...newItems]);
-    setShowProductSelect(false);
-    setSelectedProductIds([]);
+    setShowProductModal(false);
+    setSelectedProductIds(new Set());
   };
 
   // Remove from cart
@@ -124,101 +131,97 @@ export default function POSPage() {
   const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
   const total = subtotal - discount;
 
-  // Process order
-  const processOrder = async () => {
+  // Submit order
+  const submitOrder = async () => {
     if (!customerPhone) {
       alert('Vui lòng nhập số điện thoại khách hàng!');
       return;
     }
 
     if (cart.length === 0) {
-      alert('Vui lòng thêm sản phẩm vào giỏ hàng!');
+      alert('Giỏ hàng trống!');
       return;
     }
 
-    const hasInvalidWeight = cart.some(item => !item.weight || item.weight <= 0);
-    if (hasInvalidWeight) {
+    const hasInvalidItems = cart.some(item => !item.weight || item.weight <= 0);
+    if (hasInvalidItems) {
       alert('Vui lòng nhập cân nặng cho tất cả sản phẩm!');
       return;
     }
 
-    try {
-      setIsProcessing(true);
+    setIsProcessing(true);
 
-      const orderData = {
+    try {
+      await ordersAPI.create({
         customer_phone: customerPhone,
         customer_name: customerName,
         customer_address: customerAddress,
         payment_method: paymentMethod,
-        payment_status: 'paid',
+        payment_status: paymentStatus,
         discount_amount: discount,
         notes: orderNotes,
-        items: cart.map(item => ({
-          seafood_id: item.seafood_id,
-          quantity: item.quantity,
-          weight: item.weight,
-          unit_price: item.unit_price,
-          notes: item.notes || '',
-        })),
-      };
+        items: cart,
+      });
 
-      const order = await ordersAPI.create(orderData);
+      setOrderSuccess(true);
 
-      alert(`✅ Đơn hàng ${order.order_code} đã được tạo thành công!\n\nTổng tiền: ${formatCurrency(order.total_amount)}`);
-
-      // Reset
-      setCart([]);
-      setCustomerPhone('');
-      setCustomerName('');
-      setCustomerAddress('');
-      setDiscount(0);
-      setOrderNotes('');
-      loadData();
-
-    } catch (error: any) {
-      alert('❌ Lỗi tạo đơn hàng: ' + error.message);
+      setTimeout(() => {
+        setCart([]);
+        setCustomerPhone('');
+        setCustomerName('');
+        setCustomerAddress('');
+        setDiscount(0);
+        setOrderNotes('');
+        setPaymentStatus('pending');
+        setOrderSuccess(false);
+        loadData();
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      alert('Tạo đơn hàng thất bại! Vui lòng thử lại.');
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-10 shadow-sm">
-        <div className="w-full max-w-[1800px] mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingCart className="w-6 h-6 text-indigo-600" />
-              Point of Sale
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1">Hệ thống bán hải sản</p>
+      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-3">
+                <ShoppingCart className="w-7 h-7 text-indigo-600" />
+                Point of Sale
+              </h1>
+              <p className="text-gray-600 mt-1">Hệ thống bán hải sản</p>
+            </div>
+            <button
+              onClick={() => setShowProductModal(true)}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-all shadow-lg font-semibold"
+            >
+              <Plus className="w-5 h-5" />
+              Thêm Sản Phẩm
+            </button>
           </div>
-          <button
-            onClick={() => setShowProductSelect(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            Thêm sản phẩm
-          </button>
         </div>
       </div>
 
-      <div className="w-full max-w-[1800px] mx-auto p-4 sm:p-6">
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 sm:gap-6">
-          {/* LEFT: Cart Table - 75% width */}
-          <div className="xl:col-span-3 order-2 xl:order-1">
+      <div className="max-w-[1800px] mx-auto p-4 sm:p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* LEFT: Cart Table - Rộng ra */}
+          <div className="xl:col-span-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              {/* Cart Header */}
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Giỏ hàng ({cart.length} sản phẩm)</h2>
-                </div>
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <ShoppingCart className="w-6 h-6 text-indigo-600" />
+                  Giỏ Hàng ({cart.length} sản phẩm)
+                </h2>
                 {cart.length > 0 && (
                   <button
                     onClick={() => setCart([])}
-                    className="text-xs sm:text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                    className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
                   >
                     <Trash2 className="w-4 h-4" />
                     Xóa tất cả
@@ -228,29 +231,45 @@ export default function POSPage() {
 
               {/* Cart Table */}
               {cart.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                  <ShoppingCart className="w-16 h-16 mx-auto mb-3 opacity-30" />
-                  <p className="text-lg">Giỏ hàng trống</p>
-                  <p className="text-sm mt-1">Nhấn "Thêm sản phẩm" để bắt đầu</p>
+                <div className="text-center py-20 text-gray-400">
+                  <ShoppingCart className="w-20 h-20 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">Giỏ hàng trống</p>
+                  <p className="text-sm mt-2">Nhấn "Thêm Sản Phẩm" để bắt đầu</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sản phẩm</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Đơn vị</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase w-32">Số lượng</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase w-32">Cân nặng (kg)</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Đơn giá</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-48">Ghi chú</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Thành tiền</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase w-20">Xóa</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Sản phẩm
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Đơn vị
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+                          Số lượng
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+                          Cân nặng (kg)
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Đơn giá
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-48">
+                          Ghi chú
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Thành tiền
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
+                          Xóa
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {cart.map((item, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
+                        <tr key={index} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-4">
                             <div>
                               <p className="font-semibold text-gray-800">{item.seafood?.name}</p>
@@ -350,8 +369,8 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* RIGHT: Customer Info - 25% width */}
-          <div className="xl:col-span-1 order-1 xl:order-2">
+          {/* RIGHT: Customer Info & Submit */}
+          <div className="xl:col-span-1">
             <div className="sticky top-24 space-y-4">
               <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -407,12 +426,22 @@ export default function POSPage() {
                     </select>
                   </div>
 
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={paymentStatus === 'paid'}
+                      onChange={(e) => setPaymentStatus(e.target.checked ? 'paid' : 'pending')}
+                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-700 font-medium">Đã thanh toán</span>
+                  </label>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú đơn hàng</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea
                       value={orderNotes}
                       onChange={(e) => setOrderNotes(e.target.value)}
-                      placeholder="Ghi chú..."
+                      placeholder="Ghi chú đơn hàng..."
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500"
                     />
@@ -421,11 +450,20 @@ export default function POSPage() {
               </div>
 
               <button
-                onClick={processOrder}
-                disabled={isProcessing || cart.length === 0 || !customerPhone}
-                className="w-full py-4 rounded-xl font-bold text-white transition-all shadow-lg flex items-center justify-center gap-2 text-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={submitOrder}
+                disabled={isProcessing || cart.length === 0 || !customerPhone || orderSuccess}
+                className={`w-full py-4 rounded-xl font-bold text-white transition-all shadow-lg flex items-center justify-center gap-2 text-lg ${
+                  orderSuccess
+                    ? 'bg-green-500'
+                    : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400'
+                } disabled:cursor-not-allowed`}
               >
-                {isProcessing ? (
+                {orderSuccess ? (
+                  <>
+                    <Check className="w-6 h-6" />
+                    Đơn Hàng Đã Tạo!
+                  </>
+                ) : isProcessing ? (
                   'Đang Xử Lý...'
                 ) : (
                   <>
@@ -439,18 +477,18 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Multi-Select Product Modal */}
-      {showProductSelect && (
+      {/* Multi-Select Product Modal - CHỈ CHỌN, KHÔNG NHẬP */}
+      {showProductModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-indigo-600 text-white rounded-t-2xl">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-indigo-600 text-white">
               <h2 className="text-2xl font-bold">
-                Chọn Sản Phẩm ({selectedProductIds.length} đã chọn)
+                Chọn Sản Phẩm ({selectedProductIds.size} đã chọn)
               </h2>
               <button
                 onClick={() => {
-                  setShowProductSelect(false);
-                  setSelectedProductIds([]);
+                  setShowProductModal(false);
+                  setSelectedProductIds(new Set());
                 }}
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
@@ -499,27 +537,28 @@ export default function POSPage() {
                 </div>
               </div>
 
-              {/* Product Grid */}
+              {/* Product Grid with Checkboxes */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProducts.map(product => {
-                  const isSelected = selectedProductIds.includes(product.id);
+                  const isSelected = selectedProductIds.has(product.id);
                   return (
-                    <div
+                    <button
                       key={product.id}
                       onClick={() => toggleProductSelection(product.id)}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      className={`text-left p-4 rounded-xl border-2 transition-all ${
                         isSelected
-                          ? 'border-indigo-500 bg-indigo-50 shadow-lg'
+                          ? 'border-indigo-500 bg-indigo-50 shadow-md'
                           : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'
                       }`}
                     >
                       <div className="flex items-start gap-3 mb-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}}
-                          className="w-5 h-5 mt-1 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                        />
+                        <div className="flex-shrink-0 mt-1">
+                          {isSelected ? (
+                            <CheckSquare className="w-6 h-6 text-indigo-600" />
+                          ) : (
+                            <Square className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-gray-800 truncate">{product.name}</h3>
                           <p className="text-xs text-gray-500 mt-1">{product.code}</p>
@@ -539,32 +578,32 @@ export default function POSPage() {
                         <div className="text-right">
                           <p className="text-xs text-gray-500">Kho:</p>
                           <p className="text-sm font-semibold text-gray-700">
-                            {Number(product.stock_quantity || 0).toFixed(2)} kg
+                            {product.stock_quantity.toFixed(2)} kg
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
               {filteredProducts.length === 0 && (
                 <div className="text-center py-12 text-gray-400">
-                  <ShoppingCart className="w-16 h-16 mx-auto mb-3 opacity-30" />
+                  <Package className="w-16 h-16 mx-auto mb-3 opacity-30" />
                   <p>Không tìm thấy sản phẩm</p>
                 </div>
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50 rounded-b-2xl">
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
               <p className="text-sm text-gray-600">
-                Đã chọn <span className="font-bold text-indigo-600 text-lg">{selectedProductIds.length}</span> sản phẩm
+                Đã chọn <span className="font-bold text-indigo-600 text-lg">{selectedProductIds.size}</span> sản phẩm
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    setShowProductSelect(false);
-                    setSelectedProductIds([]);
+                    setShowProductModal(false);
+                    setSelectedProductIds(new Set());
                   }}
                   className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 transition-colors"
                 >
@@ -572,11 +611,11 @@ export default function POSPage() {
                 </button>
                 <button
                   onClick={addSelectedToCart}
-                  disabled={selectedProductIds.length === 0}
+                  disabled={selectedProductIds.size === 0}
                   className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
-                  Thêm Vào Giỏ ({selectedProductIds.length})
+                  Thêm Vào Giỏ ({selectedProductIds.size})
                 </button>
               </div>
             </div>

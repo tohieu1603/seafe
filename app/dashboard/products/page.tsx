@@ -29,6 +29,8 @@ export default function ProductsPage() {
     code: '',
     name: '',
     category_id: '',
+    unit_type: 'kg',
+    avg_unit_weight: 0,
     current_price: 0,
     stock_quantity: 0,
     description: '',
@@ -97,6 +99,8 @@ export default function ProductsPage() {
       code: '',
       name: '',
       category_id: '',
+      unit_type: 'kg',
+      avg_unit_weight: 0,
       current_price: 0,
       stock_quantity: 0,
       description: '',
@@ -114,6 +118,8 @@ export default function ProductsPage() {
       code: product.code,
       name: product.name,
       category_id: product.category_id || '',
+      unit_type: product.unit_type || 'kg',
+      avg_unit_weight: Number(product.avg_unit_weight || 0),
       current_price: Number(product.current_price),
       stock_quantity: Number(product.stock_quantity),
       description: product.description || '',
@@ -637,6 +643,41 @@ export default function ProductsPage() {
                     <option value="active">Đang bán</option>
                     <option value="inactive">Ngừng bán</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Đơn vị tính *</label>
+                  <select
+                    value={formData.unit_type}
+                    onChange={(e) => setFormData({ ...formData, unit_type: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="piece">Con/Cái</option>
+                    <option value="box">Thùng/Hộp</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Trọng lượng TB (kg/{formData.unit_type === 'piece' ? 'con' : formData.unit_type === 'box' ? 'thùng' : 'đơn vị'})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.avg_unit_weight || ''}
+                    onChange={(e) => setFormData({ ...formData, avg_unit_weight: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder={formData.unit_type === 'kg' ? 'Không áp dụng' : 'VD: 0.05'}
+                    disabled={formData.unit_type === 'kg'}
+                  />
+                  {formData.unit_type !== 'kg' && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Ví dụ: Mỗi con ốc = 0.05kg, Mỗi thùng tôm = 5kg
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -1,11 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Fish, ShoppingCart, Package, Truck, Shield, Users, Sun, Moon, Scale, Image, FileText } from 'lucide-react'
 
 export default function Home() {
+  const router = useRouter()
   const [darkMode, setDarkMode] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+
+  useEffect(() => {
+    // Check authentication first
+    const token = localStorage.getItem('token')
+
+    if (token) {
+      // User is logged in, redirect to dashboard
+      router.push('/dashboard/pos')
+    } else {
+      // User not logged in, redirect to login
+      router.push('/auth/login')
+    }
+
+    setIsChecking(false)
+  }, [router])
 
   useEffect(() => {
     // Load dark mode preference from localStorage
@@ -22,6 +40,18 @@ export default function Home() {
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode)
+  }
+
+  // Show loading while checking auth
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Fish className="w-16 h-16 text-cyan-600 animate-pulse mx-auto mb-4" />
+          <p className="text-gray-600">Đang kiểm tra đăng nhập...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -51,7 +81,7 @@ export default function Home() {
               </div>
             </div>
             <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
-              Hưng Trường Sa
+              Hùng Trường Sa
             </h1>
             <p className="text-2xl md:text-3xl font-semibold text-slate-800 dark:text-slate-200 mb-4">
               Hải Sản Tươi Sống

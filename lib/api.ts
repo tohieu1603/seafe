@@ -2,10 +2,10 @@
  * API Client for BaseSystem
  * Uses environment variable for API URL
  */
-
+console.log(`${process.env.NEXT_PUBLIC_API_URL}`)
 const API_BASE_URL = typeof window !== 'undefined'
-  ? (process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000')  // Client-side
-  : (process.env.API_URL || 'http://backend:8000')    // Server-side (for SSR)
+  ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003')  // Client-side
+  : (process.env.API_BACKEND_URL || 'http://localhost:8003')    // Server-side (for SSR)
 
 interface RequestOptions extends RequestInit {
   token?: string
