@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { productsAPI, ordersAPI, categoriesAPI, formatCurrency, Seafood, Category, OrderItem } from '@/lib/seafood-api';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X, Check, Package, Weight, Hash } from 'lucide-react';
+import { Search, Plus, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X, Check, Package } from 'lucide-react';
 
 // Helper để format đơn vị
 const getUnitLabel = (unitType: string) => {
@@ -290,7 +290,7 @@ export default function POSMultiSelectPage() {
                           {item.seafood?.unit_type !== 'kg' && (
                             <div>
                               <label className="text-xs text-gray-600 mb-1 block">
-                                Số {getUnitLabel(item.seafood.unit_type)}
+                                Số {getUnitLabel(item.seafood?.unit_type || 'kg')}
                               </label>
                               <input
                                 type="number"

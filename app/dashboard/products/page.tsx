@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { productsAPI, categoriesAPI, formatCurrency, formatWeight, Seafood, Category } from '@/lib/seafood-api';
 import { Package, Plus, Edit, Trash2, Search, Filter, X, ChevronDown, ChevronRight, Tag as TagIcon } from 'lucide-react';
-import Link from 'next/link';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Seafood[]>([]);
@@ -151,6 +150,7 @@ export default function ProductsPage() {
       const data = {
         ...formData,
         tags,
+        unit_type: formData.unit_type as 'kg' | 'piece' | 'box',
       };
 
       if (editingProduct) {

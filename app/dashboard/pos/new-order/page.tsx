@@ -20,9 +20,6 @@ export default function NewOrderPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
-  // Product selection modal
-  const [showProductModal, setShowProductModal] = useState(false);
-
   // Customer info
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -329,9 +326,9 @@ export default function NewOrderPage() {
                               value={item.quantity || 0}
                               onChange={(e) => updateCartItem(index, 'quantity', e.target.value)}
                               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder={`Số ${getUnitLabel(item.seafood.unit_type)}`}
+                              placeholder={`Số ${getUnitLabel(item.seafood?.unit_type || 'kg')}`}
                             />
-                            <span className="text-xs text-gray-500">{getUnitLabel(item.seafood.unit_type)}</span>
+                            <span className="text-xs text-gray-500">{getUnitLabel(item.seafood?.unit_type || 'kg')}</span>
                           </div>
                         )}
 

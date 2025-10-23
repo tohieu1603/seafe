@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { productsAPI, ordersAPI, categoriesAPI, formatCurrency, Seafood, Category, OrderItem } from '@/lib/seafood-api';
-import { Search, Plus, Trash2, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X, Check, Package, CheckSquare, Square } from 'lucide-react';
+import { Search, Plus, Trash2, ShoppingCart, User, Save, X, Check, Package, CheckSquare, Square } from 'lucide-react';
 
 // Helper để format đơn vị
 const getUnitLabel = (unitType: string) => {
@@ -81,12 +81,12 @@ export default function POSPageV2() {
     }
 
     // Add selected products to cart with default values
-    const newItems: OrderItem[] = Array.from(selectedProductIds)
+    const newItems = Array.from(selectedProductIds)
       .map(productId => {
         const product = products.find(p => p.id === productId);
         if (!product) return null;
 
-        return {
+        const item: OrderItem = {
           seafood_id: product.id,
           seafood: product,
           quantity: product.unit_type === 'kg' ? undefined : 1,
@@ -94,6 +94,7 @@ export default function POSPageV2() {
           unit_price: Number(product.current_price),
           notes: '',
         };
+        return item;
       })
       .filter((item): item is OrderItem => item !== null);
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { productsAPI, ordersAPI, categoriesAPI, formatCurrency, Seafood, Category, OrderItem } from '@/lib/seafood-api';
-import { Search, Plus, Trash2, ShoppingCart, Phone, User, MapPin, CreditCard, Tag, Save, X } from 'lucide-react';
+import { Search, Plus, Trash2, ShoppingCart, User, Save, X } from 'lucide-react';
 
 const getUnitLabel = (unitType: string) => {
   switch (unitType) {
@@ -74,12 +74,12 @@ export default function POSPage() {
       return;
     }
 
-    const newItems: OrderItem[] = selectedProductIds
+    const newItems = selectedProductIds
       .map(id => {
         const product = products.find(p => p.id === id);
         if (!product) return null;
 
-        return {
+        const item: OrderItem = {
           seafood_id: product.id,
           seafood: product,
           quantity: product.unit_type === 'kg' ? undefined : 1,
@@ -87,6 +87,7 @@ export default function POSPage() {
           unit_price: Number(product.current_price),
           notes: '',
         };
+        return item;
       })
       .filter((item): item is OrderItem => item !== null);
 
