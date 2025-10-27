@@ -49,7 +49,7 @@ export default function CustomerLogin() {
       if (data.user.user_type === 'customer') {
         router.push('/customer/dashboard');
       } else {
-        // Employee/manager go to dashboard
+        // Staff/Admin go to dashboard
         router.push('/dashboard');
       }
     } catch (err: any) {

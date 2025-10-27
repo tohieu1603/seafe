@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateOrderQR } from '@/lib/vietqr'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003'}/api`
 
@@ -78,6 +79,21 @@ export default function OrderDetailPage() {
   const [uploadingImage, setUploadingImage] = useState<string | null>(null)
   const [shippingNotes, setShippingNotes] = useState('')
 
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    type?: 'danger' | 'warning' | 'info' | 'success';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  })
+
   useEffect(() => {
     fetchOrder()
   }, [params.id])
@@ -111,6 +127,17 @@ export default function OrderDetailPage() {
       setEditSubtotal(weight * price)
     }
   }, [editWeight, editPrice])
+
+  const confirmSaveItem = (itemId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Lưu thay đổi',
+      message: 'Bạn có chắc chắn muốn lưu các thay đổi về trọng lượng và giá của sản phẩm này?',
+      confirmText: 'Lưu',
+      type: 'info',
+      onConfirm: () => handleSaveItem(itemId)
+    });
+  };
 
   const handleSaveItem = async (itemId: string) => {
     try {
@@ -173,6 +200,17 @@ export default function OrderDetailPage() {
     }
   }
 
+  const confirmMarkPaid = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Xác nhận đã thu tiền',
+      message: 'Bạn có chắc chắn muốn đánh dấu đơn hàng này đã thu tiền? Trạng thái sẽ chuyển sang "Chờ xác minh".',
+      confirmText: 'Xác nhận',
+      type: 'success',
+      onConfirm: handleMarkPaid
+    });
+  };
+
   const handleMarkPaid = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -198,6 +236,17 @@ export default function OrderDetailPage() {
       toast.error('Lỗi khi cập nhật trạng thái thanh toán')
     }
   }
+
+  const confirmVerifyPayment = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Xác minh thanh toán',
+      message: 'Bạn có chắc chắn đã kiểm tra và xác nhận khách hàng đã thanh toán đơn hàng này?',
+      confirmText: 'Xác minh',
+      type: 'success',
+      onConfirm: handleVerifyPayment
+    });
+  };
 
   const handleVerifyPayment = async () => {
     try {
@@ -225,6 +274,17 @@ export default function OrderDetailPage() {
     }
   }
 
+  const confirmMarkWeighed = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Đánh dấu đã cân hàng',
+      message: 'Bạn có chắc chắn đã cân xong tất cả sản phẩm trong đơn hàng này?',
+      confirmText: 'Xác nhận',
+      type: 'info',
+      onConfirm: handleMarkWeighed
+    });
+  };
+
   const handleMarkWeighed = async () => {
     try {
       const response = await fetch(
@@ -248,6 +308,17 @@ export default function OrderDetailPage() {
     }
   }
 
+  const confirmMarkShipped = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Xác nhận đã gửi vận chuyển',
+      message: 'Bạn có chắc chắn đã gửi đơn hàng này đi vận chuyển?',
+      confirmText: 'Xác nhận',
+      type: 'info',
+      onConfirm: handleMarkShipped
+    });
+  };
+
   const handleMarkShipped = async () => {
     try {
       const response = await fetch(
@@ -270,6 +341,17 @@ export default function OrderDetailPage() {
       toast.error('Lỗi khi cập nhật trạng thái')
     }
   }
+
+  const confirmMarkDelivered = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Xác nhận giao hàng thành công',
+      message: 'Bạn có chắc chắn đơn hàng này đã được giao thành công cho khách hàng?',
+      confirmText: 'Xác nhận',
+      type: 'success',
+      onConfirm: handleMarkDelivered
+    });
+  };
 
   const handleMarkDelivered = async () => {
     try {
@@ -386,7 +468,7 @@ export default function OrderDetailPage() {
           <div className="flex flex-wrap gap-2">
             {order.payment_status === 'unpaid' && (
               <button
-                onClick={handleMarkPaid}
+                onClick={confirmMarkPaid}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <CreditCard size={18} />
@@ -396,7 +478,7 @@ export default function OrderDetailPage() {
 
             {order.payment_status === 'pending_verification' && (
               <button
-                onClick={handleVerifyPayment}
+                onClick={confirmVerifyPayment}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
               >
                 <CreditCard size={18} />
@@ -414,7 +496,7 @@ export default function OrderDetailPage() {
 
             {!['weighed', 'shipped', 'completed'].includes(order.status) && (
               <button
-                onClick={handleMarkWeighed}
+                onClick={confirmMarkWeighed}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 <Scale size={18} />
@@ -424,7 +506,7 @@ export default function OrderDetailPage() {
 
             {order.status === 'weighed' && (
               <button
-                onClick={handleMarkShipped}
+                onClick={confirmMarkShipped}
                 className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
               >
                 <Truck size={18} />
@@ -434,7 +516,7 @@ export default function OrderDetailPage() {
 
             {order.status === 'shipped' && (
               <button
-                onClick={handleMarkDelivered}
+                onClick={confirmMarkDelivered}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <CheckCircle2 size={18} />
@@ -532,7 +614,7 @@ export default function OrderDetailPage() {
 
                           <div className="flex gap-2">
                             <button
-                              onClick={() => handleSaveItem(item.id)}
+                              onClick={() => confirmSaveItem(item.id)}
                               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                             >
                               <Save size={16} />
@@ -808,6 +890,17 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        type={confirmModal.type}
+      />
     </div>
   )
 }

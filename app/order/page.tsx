@@ -211,13 +211,9 @@ export default function PublicOrderPage() {
       setOrderCode(order.order_code);
       setOrderAmount(order.total_amount);
 
-      // Show QR modal if payment method is bank_transfer
-      if (paymentMethod === 'bank_transfer') {
-        // Fetch QR code from backend
-        await fetchQRCode(order.order_code);
-      } else {
-        setOrderSuccess(true);
-      }
+      // DO NOT show QR immediately - customer must wait for weighing first
+      // Show success message instead
+      setOrderSuccess(true);
 
       // Reset form
       setCart([]);
@@ -311,14 +307,29 @@ export default function PublicOrderPage() {
             <Check className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-3">Đặt hàng thành công!</h1>
-          <p className="text-gray-600 mb-6">
-            Mã đơn hàng của bạn là:
+          <p className="text-gray-600 mb-4">
+            Mã đơn hàng của bạn:
           </p>
           <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 mb-6">
             <p className="text-2xl font-bold text-green-700">{orderCode}</p>
           </div>
-          <p className="text-sm text-gray-500 mb-8">
-            Cảm ơn bạn đã đặt hàng! Chúng tôi sẽ liên hệ với bạn sớm nhất.
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+            <p className="font-semibold text-blue-800 mb-2">📦 Quy trình xử lý:</p>
+            <ol className="text-sm text-blue-700 space-y-1">
+              <li>1. Nhân viên sẽ cân hàng và gửi ảnh cho bạn</li>
+              <li>2. Bạn kiểm tra ảnh cân hàng</li>
+              <li>3. Nhấn nút "Thanh toán" để hiện mã QR {paymentMethod === 'bank_transfer' && '(nếu chọn chuyển khoản)'}</li>
+              <li>4. Hoàn tất đơn hàng</li>
+            </ol>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-6">
+            {isLoggedIn ? (
+              <>Vào <strong>Dashboard</strong> để xem chi tiết và trạng thái đơn hàng</>
+            ) : (
+              <>Đăng nhập để theo dõi trạng thái đơn hàng</>
+            )}
           </p>
           <button
             onClick={resetForm}

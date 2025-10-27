@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/users/login', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -30,10 +30,19 @@ export default function LoginPage() {
       }
 
       const data = await res.json()
-      localStorage.setItem('token', data.access_token)
+
+      // Save token to localStorage (use consistent naming)
+      localStorage.setItem('access_token', data.access_token)
+      localStorage.setItem('token', data.access_token) // Keep for backward compatibility
       localStorage.setItem('user', JSON.stringify(data.user))
 
-      router.push('/dashboard')
+      // Redirect based on user type
+      if (data.user.user_type === 'customer') {
+        router.push('/customer/dashboard')
+      } else {
+        // Staff/Admin go to dashboard
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
