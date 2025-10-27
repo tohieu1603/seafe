@@ -10,15 +10,18 @@ import {
   MapPin,
   CreditCard,
   Calendar,
-  FileText,
   Scale,
-  Upload,
   Truck,
   Download,
   Edit2,
   Save,
-  X
+  X,
+  Upload,
+  Camera,
+  CheckCircle2
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { generateOrderQR } from '@/lib/vietqr'
 
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003'}/api`
 
@@ -70,7 +73,9 @@ export default function OrderDetailPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [editWeight, setEditWeight] = useState('')
   const [editPrice, setEditPrice] = useState('')
-  const [uploadingImage, setUploadingImage] = useState(false)
+  const [editSubtotal, setEditSubtotal] = useState(0)
+  const [editImageFile, setEditImageFile] = useState<File | null>(null)
+  const [uploadingImage, setUploadingImage] = useState<string | null>(null)
   const [shippingNotes, setShippingNotes] = useState('')
 
   useEffect(() => {
@@ -94,43 +99,129 @@ export default function OrderDetailPage() {
     setEditingItemId(item.id)
     setEditWeight(item.weight.toString())
     setEditPrice(item.unit_price.toString())
+    setEditSubtotal(item.weight * item.unit_price)
+    setEditImageFile(null)
   }
+
+  // Tự động tính lại subtotal khi thay đổi weight hoặc price
+  useEffect(() => {
+    if (editWeight && editPrice) {
+      const weight = parseFloat(editWeight) || 0
+      const price = parseFloat(editPrice) || 0
+      setEditSubtotal(weight * price)
+    }
+  }, [editWeight, editPrice])
 
   const handleSaveItem = async (itemId: string) => {
     try {
+      // 1. Update weight and price
       const response = await fetch(
         `${API_URL}/seafood/orders/${order?.id}/update-item?item_id=${itemId}&weight=${editWeight}&unit_price=${editPrice}`,
         { method: 'POST' }
       )
 
-      if (response.ok) {
-        await fetchOrder()
-        setEditingItemId(null)
+      if (!response.ok) {
+        toast.error('Không thể cập nhật sản phẩm')
+        return
       }
+
+      // 2. Upload image if selected
+      if (editImageFile) {
+        await handleUploadImage(itemId, editImageFile)
+      }
+
+      // 3. Refresh and show success
+      await fetchOrder()
+      setEditingItemId(null)
+      setEditImageFile(null)
+      toast.success('Cập nhật thành công!')
     } catch (error) {
       console.error('Failed to update item:', error)
+      toast.error('Lỗi khi cập nhật sản phẩm')
     }
   }
 
   const handleUploadImage = async (itemId: string, file: File) => {
-    setUploadingImage(true)
+    setUploadingImage(itemId)
     try {
-      // TODO: Upload to cloud storage (Cloudinary, S3, etc.)
-      // For now, we'll just use a placeholder
-      const imageUrl = `https://via.placeholder.com/400x300?text=Weight+Image`
+      const formData = new FormData()
+      formData.append('image', file)
 
+      const token = localStorage.getItem('token')
       const response = await fetch(
-        `${API_URL}/seafood/orders/${order?.id}/update-item?item_id=${itemId}&weight_image_url=${encodeURIComponent(imageUrl)}`,
-        { method: 'POST' }
+        `${API_URL}/seafood/orders/${order?.id}/items/${itemId}/upload-image`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        }
       )
 
       if (response.ok) {
+        await response.json()
         await fetchOrder()
+      } else {
+        throw new Error('Upload failed')
       }
     } catch (error) {
       console.error('Failed to upload image:', error)
+      toast.error('Lỗi khi tải ảnh')
     } finally {
-      setUploadingImage(false)
+      setUploadingImage(null)
+    }
+  }
+
+  const handleMarkPaid = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        `${API_URL}/seafood/orders/${order?.id}/mark-paid`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+
+      if (response.ok) {
+        toast.success('Đã đánh dấu đã thu tiền! Chờ Sale xác minh.')
+        await fetchOrder()
+      } else {
+        toast.error('Không thể cập nhật trạng thái thanh toán')
+      }
+    } catch (error) {
+      console.error('Failed to mark paid:', error)
+      toast.error('Lỗi khi cập nhật trạng thái thanh toán')
+    }
+  }
+
+  const handleVerifyPayment = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        `${API_URL}/seafood/orders/${order?.id}/verify-payment`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+
+      if (response.ok) {
+        toast.success('Đã xác minh thanh toán thành công!')
+        await fetchOrder()
+      } else {
+        toast.error('Không thể xác minh thanh toán')
+      }
+    } catch (error) {
+      console.error('Failed to verify payment:', error)
+      toast.error('Lỗi khi xác minh thanh toán')
     }
   }
 
@@ -146,10 +237,14 @@ export default function OrderDetailPage() {
       )
 
       if (response.ok) {
+        toast.success('Đã cập nhật trạng thái cân hàng!')
         await fetchOrder()
+      } else {
+        toast.error('Không thể cập nhật trạng thái')
       }
     } catch (error) {
       console.error('Failed to mark weighed:', error)
+      toast.error('Lỗi khi cập nhật trạng thái')
     }
   }
 
@@ -165,10 +260,41 @@ export default function OrderDetailPage() {
       )
 
       if (response.ok) {
+        toast.success('Đã cập nhật trạng thái giao hàng!')
         await fetchOrder()
+      } else {
+        toast.error('Không thể cập nhật trạng thái')
       }
     } catch (error) {
       console.error('Failed to mark shipped:', error)
+      toast.error('Lỗi khi cập nhật trạng thái')
+    }
+  }
+
+  const handleMarkDelivered = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        `${API_URL}/seafood/orders/${order?.id}/mark-delivered`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+
+      if (response.ok) {
+        toast.success('Đã xác nhận giao hàng thành công!')
+        await fetchOrder()
+      } else {
+        const data = await response.json()
+        toast.error(data.detail || 'Không thể xác nhận giao hàng')
+      }
+    } catch (error) {
+      console.error('Failed to mark delivered:', error)
+      toast.error('Lỗi khi xác nhận giao hàng')
     }
   }
 
@@ -196,13 +322,16 @@ export default function OrderDetailPage() {
   }
 
   const getPaymentStatusBadge = (status: string) => {
-    return status === 'paid' ? (
-      <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-        Đã thanh toán
-      </span>
-    ) : (
-      <span className="px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-        Chờ thanh toán
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      unpaid: { label: 'Chưa thanh toán', className: 'bg-red-100 text-red-800' },
+      pending_verification: { label: 'Chờ xác minh', className: 'bg-yellow-100 text-yellow-800' },
+      paid: { label: 'Đã thanh toán', className: 'bg-green-100 text-green-800' },
+    }
+
+    const config = statusConfig[status] || statusConfig.unpaid
+    return (
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ${config.className}`}>
+        {config.label}
       </span>
     )
   }
@@ -255,6 +384,26 @@ export default function OrderDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {order.payment_status === 'unpaid' && (
+              <button
+                onClick={handleMarkPaid}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <CreditCard size={18} />
+                Đã thu tiền
+              </button>
+            )}
+
+            {order.payment_status === 'pending_verification' && (
+              <button
+                onClick={handleVerifyPayment}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+              >
+                <CreditCard size={18} />
+                Xác minh thanh toán
+              </button>
+            )}
+
             <button
               onClick={handleExportPDF}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -280,6 +429,16 @@ export default function OrderDetailPage() {
               >
                 <Truck size={18} />
                 Đã gửi vận chuyển
+              </button>
+            )}
+
+            {order.status === 'shipped' && (
+              <button
+                onClick={handleMarkDelivered}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <CheckCircle2 size={18} />
+                Xác nhận giao hàng
               </button>
             )}
           </div>
@@ -333,6 +492,44 @@ export default function OrderDetailPage() {
                             />
                           </div>
 
+                          <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+                            <span className="text-sm font-medium text-slate-700">Thành tiền:</span>
+                            <span className="text-lg font-bold text-indigo-600">
+                              {editSubtotal.toLocaleString('vi-VN')}đ
+                            </span>
+                          </div>
+
+                          {/* Upload ảnh trong form edit */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Ảnh cân hàng
+                            </label>
+                            <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-lg hover:border-indigo-400 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) setEditImageFile(file)
+                                }}
+                              />
+                              <div className="text-center">
+                                {editImageFile ? (
+                                  <>
+                                    <Camera size={20} className="text-green-600 mx-auto mb-1" />
+                                    <p className="text-sm text-green-600 font-medium">{editImageFile.name}</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload size={20} className="text-slate-400 mx-auto mb-1" />
+                                    <p className="text-sm text-slate-500">Chọn ảnh cân (tùy chọn)</p>
+                                  </>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleSaveItem(item.id)}
@@ -374,34 +571,61 @@ export default function OrderDetailPage() {
                               Chỉnh sửa
                             </button>
                           )}
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Ảnh cân */}
-                    <div className="w-full md:w-48">
-                      {item.weight_image_url ? (
-                        <img
-                          src={item.weight_image_url}
-                          alt="Ảnh cân"
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      ) : (
-                        <div className="w-full h-32 bg-slate-100 rounded-lg flex flex-col items-center justify-center">
-                          <Upload size={24} className="text-slate-400 mb-2" />
-                          <label className="text-sm text-slate-500 cursor-pointer hover:text-indigo-600">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) handleUploadImage(item.id, file)
-                              }}
-                              disabled={uploadingImage}
-                            />
-                            Tải ảnh cân
-                          </label>
+                          {/* Upload ảnh cân */}
+                          <div className="mt-4 pt-4 border-t border-slate-200">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Ảnh cân hàng</label>
+                            {item.weight_image_url ? (
+                              <div className="relative">
+                                <img
+                                  src={item.weight_image_url}
+                                  alt="Ảnh cân"
+                                  className="w-full h-48 object-cover rounded-lg border-2 border-slate-200"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const input = document.createElement('input')
+                                    input.type = 'file'
+                                    input.accept = 'image/*'
+                                    input.onchange = (e) => {
+                                      const file = (e.target as HTMLInputElement).files?.[0]
+                                      if (file) handleUploadImage(item.id, file)
+                                    }
+                                    input.click()
+                                  }}
+                                  disabled={uploadingImage === item.id}
+                                  className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-white/90 text-slate-700 rounded-lg hover:bg-white border border-slate-300 shadow-sm text-sm"
+                                >
+                                  <Camera size={14} />
+                                  Đổi ảnh
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg hover:border-indigo-400 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) handleUploadImage(item.id, file)
+                                  }}
+                                  disabled={uploadingImage === item.id}
+                                />
+                                {uploadingImage === item.id ? (
+                                  <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+                                    <p className="text-sm text-slate-500">Đang tải...</p>
+                                  </div>
+                                ) : (
+                                  <div className="text-center">
+                                    <Upload size={24} className="text-slate-400 mx-auto mb-2" />
+                                    <p className="text-sm text-slate-500">Nhấn để tải ảnh cân</p>
+                                  </div>
+                                )}
+                              </label>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -493,7 +717,51 @@ export default function OrderDetailPage() {
               {order.payment_method && (
                 <div className="pt-3 border-t border-slate-200">
                   <p className="text-sm text-slate-600 mb-1">Phương thức thanh toán</p>
-                  <p className="font-medium capitalize">{order.payment_method}</p>
+                  <p className="font-medium capitalize">{order.payment_method === 'bank_transfer' ? 'Chuyển khoản' : 'Tiền mặt'}</p>
+
+                  {/* VietQR Code for bank transfer */}
+                  {order.payment_method === 'bank_transfer' && order.payment_status !== 'paid' && (
+                    <div className="mt-4 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
+                      <div className="text-center">
+                        <h4 className="font-semibold text-indigo-900 mb-2">Quét mã QR để thanh toán</h4>
+                        <div className="bg-white p-3 rounded-lg inline-block shadow-sm">
+                          <img
+                            src={generateOrderQR(order.order_code, order.total_amount)}
+                            alt="VietQR Code"
+                            className="w-64 h-64 mx-auto"
+                          />
+                        </div>
+                        <p className="text-sm text-slate-600 mt-3">
+                          Quét mã QR bằng ứng dụng ngân hàng để thanh toán
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Nội dung: <span className="font-mono font-semibold">Thanh toan {order.order_code}</span>
+                        </p>
+                        <div className="mt-3 pt-3 border-t border-indigo-200">
+                          <p className="text-xs text-slate-600">
+                            Sau khi chuyển khoản, vui lòng nhấn nút "Đánh dấu đã thu tiền" bên dưới
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment confirmation message */}
+                  {order.payment_method === 'bank_transfer' && order.payment_status === 'paid' && (
+                    <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-800 font-medium text-center">
+                        ✅ Đã thanh toán thành công
+                      </p>
+                    </div>
+                  )}
+
+                  {order.payment_method === 'bank_transfer' && order.payment_status === 'pending_verification' && (
+                    <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <p className="text-sm text-yellow-800 font-medium text-center">
+                        ⏳ Đang chờ Sale xác minh thanh toán
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

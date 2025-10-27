@@ -5,19 +5,13 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Shield,
-  Users,
-  Key,
-  Building2,
-  LayoutDashboard,
   LogOut,
   Menu,
   X,
-  Fish,
-  ShoppingCart,
-  Package,
-  TrendingUp,
-  Receipt,
 } from "lucide-react";
+import { getNavigationForUser, NavigationItem } from "@/lib/navigation";
+import { Toaster, toast } from "sonner";
+import { validateRouteAccess } from "@/lib/auth-guard";
 
 export default function DashboardLayout({
   children,
@@ -27,6 +21,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
+  const [navigation, setNavigation] = useState<NavigationItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -39,26 +34,30 @@ export default function DashboardLayout({
       return;
     }
 
-    setUser(JSON.parse(userData));
-  }, [router]);
+    const parsedUser = JSON.parse(userData);
+    setUser(parsedUser);
+
+    // Check route access
+    const { allowed, redirectTo } = validateRouteAccess(parsedUser, pathname);
+    if (!allowed && redirectTo) {
+      toast.error('Bạn không có quyền truy cập trang này');
+      router.push(redirectTo);
+      return;
+    }
+
+    // Get user roles from user object
+    const userRoles = parsedUser.roles?.map((role: any) => role.slug) || [];
+
+    // Get navigation based on roles and user_type
+    const userNav = getNavigationForUser(userRoles, parsedUser.user_type);
+    setNavigation(userNav);
+  }, [router, pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.push("/auth/login");
   };
-
-  const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "🐟 Hải sản", href: "/dashboard/seafood", icon: Fish },
-    { name: "🛒 POS Bán hàng", href: "/dashboard/pos", icon: ShoppingCart },
-    { name: "📦 Sản phẩm", href: "/dashboard/products", icon: Package },
-    { name: "📋 Đơn hàng", href: "/dashboard/orders", icon: Receipt },
-    { name: "Vai trò", href: "/dashboard/roles", icon: Shield },
-    { name: "Quyền hạn", href: "/dashboard/permissions", icon: Key },
-    { name: "Người dùng", href: "/dashboard/users", icon: Users },
-    { name: "Phòng ban", href: "/dashboard/departments", icon: Building2 },
-  ];
 
   if (!user) {
     return (
@@ -67,6 +66,9 @@ export default function DashboardLayout({
       </div>
     );
   }
+
+  // Get user role display name
+  const userRoleName = user.roles?.[0]?.name || 'User';
 
   return (
     <div className="min-h-screen bg-slate-50 overflow-x-hidden">
@@ -141,7 +143,7 @@ export default function DashboardLayout({
               <p className="text-sm font-medium text-slate-900 truncate">
                 {user?.first_name} {user?.last_name}
               </p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              <p className="text-xs text-slate-500 truncate">{userRoleName}</p>
             </div>
           </div>
           <button
@@ -183,7 +185,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100%-16rem)]">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -197,6 +199,7 @@ export default function DashboardLayout({
                     ? "bg-indigo-50 text-indigo-600"
                     : "text-slate-600 hover:bg-slate-100"
                 } ${!sidebarOpen && "justify-center"}`}
+                title={!sidebarOpen ? item.name : undefined}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {sidebarOpen && (
@@ -209,7 +212,7 @@ export default function DashboardLayout({
 
         {/* User section */}
         {sidebarOpen && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200 bg-white">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
                 <span className="text-indigo-600 font-semibold">
@@ -221,7 +224,7 @@ export default function DashboardLayout({
                 <p className="text-sm font-medium text-slate-900 truncate">
                   {user.first_name} {user.last_name}
                 </p>
-                <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                <p className="text-xs text-slate-500 truncate">{userRoleName}</p>
               </div>
             </div>
             <button
@@ -243,6 +246,9 @@ export default function DashboardLayout({
       >
         <div className="w-full">{children}</div>
       </main>
+
+      {/* Toast Notifications */}
+      <Toaster position="top-right" richColors expand={true} />
     </div>
   );
 }

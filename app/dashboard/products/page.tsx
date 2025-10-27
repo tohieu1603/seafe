@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { productsAPI, categoriesAPI, formatCurrency, formatWeight, Seafood, Category } from '@/lib/seafood-api';
-import { Package, Plus, Edit, Trash2, Search, Filter, X, ChevronDown, ChevronRight, Tag as TagIcon } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Search, Filter, X, ChevronDown, ChevronRight, Tag as TagIcon, Upload, Download, FileSpreadsheet, FileText, PackagePlus, History } from 'lucide-react';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Seafood[]>([]);
@@ -22,6 +22,9 @@ export default function ProductsPage() {
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Seafood | null>(null);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [inventoryProduct, setInventoryProduct] = useState<Seafood | null>(null);
+  const [inventoryLogs, setInventoryLogs] = useState<any[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -39,6 +42,11 @@ export default function ProductsPage() {
   });
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+
+  // Inventory adjustment state
+  const [adjustmentType, setAdjustmentType] = useState<'import' | 'adjust' | 'loss'>('import');
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState<number>(0);
+  const [adjustmentNotes, setAdjustmentNotes] = useState('');
 
   useEffect(() => {
     loadData();
@@ -189,6 +197,128 @@ export default function ProductsPage() {
 
   const hasActiveFilters = searchQuery || categoryFilter !== 'all' || statusFilter !== 'all';
 
+  // Inventory management handlers
+  const openInventoryModal = async (product: Seafood) => {
+    setInventoryProduct(product);
+    setAdjustmentType('import');
+    setAdjustmentQuantity(0);
+    setAdjustmentNotes('');
+
+    // Load inventory logs for this product
+    try {
+      const response = await fetch(`http://localhost:8003/api/seafood/products/${product.id}/inventory-logs`);
+      if (response.ok) {
+        const logs = await response.json();
+        setInventoryLogs(logs);
+      }
+    } catch (error) {
+      console.error('Failed to load inventory logs:', error);
+    }
+
+    setShowInventoryModal(true);
+  };
+
+  const handleInventoryAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inventoryProduct) return;
+
+    try {
+      const response = await fetch(`http://localhost:8003/api/seafood/products/${inventoryProduct.id}/adjust-inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: adjustmentType,
+          quantity: adjustmentQuantity,
+          notes: adjustmentNotes,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Adjustment failed');
+      }
+
+      const result = await response.json();
+      alert(`✅ Cập nhật kho thành công!\n- Số lượng cũ: ${result.old_quantity} kg\n- Số lượng mới: ${result.new_quantity} kg\n- Thay đổi: ${result.change > 0 ? '+' : ''}${result.change} kg`);
+
+      setShowInventoryModal(false);
+      loadData();
+    } catch (error) {
+      console.error('Inventory adjustment error:', error);
+      alert('❌ Lỗi khi cập nhật kho');
+    }
+  };
+
+  // Import/Export handlers
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8003/api/seafood/products/import-excel', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      alert(`✅ Import thành công!\n- Tạo mới: ${result.created} sản phẩm\n- Cập nhật: ${result.updated} sản phẩm`);
+      loadData();
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('❌ Lỗi khi import file Excel');
+    }
+
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const response = await fetch('http://localhost:8003/api/seafood/products/export-excel');
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `san-pham-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('❌ Lỗi khi xuất file Excel');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const response = await fetch('http://localhost:8003/api/seafood/products/export-pdf');
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bang-gia-san-pham-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('❌ Lỗi khi xuất file PDF');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -209,13 +339,52 @@ export default function ProductsPage() {
             </h1>
             <p className="text-sm sm:text-base text-slate-600 mt-1">Quản lý danh mục hải sản</p>
           </div>
-          <button
-            onClick={openCreateModal}
-            className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg"
-          >
-            <Plus className="w-5 h-5" />
-            Thêm sản phẩm
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {/* Import Excel Button */}
+            <label className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+              <Upload className="w-5 h-5" />
+              <span>Import Excel</span>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportExcel}
+                className="hidden"
+              />
+            </label>
+
+            {/* Export Dropdown */}
+            <div className="relative group">
+              <button className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg">
+                <Download className="w-5 h-5" />
+                <span>Export</span>
+              </button>
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                <button
+                  onClick={handleExportExcel}
+                  className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center gap-3 rounded-t-lg transition-colors"
+                >
+                  <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                  <span className="text-slate-700">Export Excel</span>
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center gap-3 rounded-b-lg transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-red-600" />
+                  <span className="text-slate-700">Export PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Add Product Button */}
+            <button
+              onClick={openCreateModal}
+              className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Plus className="w-5 h-5" />
+              Thêm sản phẩm
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -351,14 +520,23 @@ export default function ProductsPage() {
                     </span>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => openInventoryModal(product)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                        title="Nhập kho"
+                      >
+                        <PackagePlus className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => openEditModal(product)}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Sửa"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Xóa"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -458,6 +636,13 @@ export default function ProductsPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openInventoryModal(product)}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Nhập kho"
+                              >
+                                <PackagePlus className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => openEditModal(product)}
                                 className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
@@ -788,6 +973,165 @@ export default function ProductsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inventory Adjustment Modal */}
+      {showInventoryModal && inventoryProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <PackagePlus className="w-6 h-6 text-green-600" />
+                  Quản lý kho: {inventoryProduct.name}
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Tồn kho hiện tại: <span className="font-semibold text-emerald-600">{formatWeight(Number(inventoryProduct.stock_quantity))}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInventoryModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: Adjustment Form */}
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-4">Điều chỉnh kho</h3>
+                <form onSubmit={handleInventoryAdjustment} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Loại điều chỉnh</label>
+                    <select
+                      value={adjustmentType}
+                      onChange={(e) => setAdjustmentType(e.target.value as 'import' | 'adjust' | 'loss')}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="import">Nhập hàng</option>
+                      <option value="adjust">Điều chỉnh</option>
+                      <option value="loss">Hao hụt</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Số lượng {adjustmentType === 'loss' ? 'giảm' : 'thay đổi'} (kg)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={adjustmentQuantity || ''}
+                      onChange={(e) => setAdjustmentQuantity(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      placeholder={adjustmentType === 'import' ? 'Nhập số lượng thêm vào' : adjustmentType === 'loss' ? 'Nhập số lượng giảm' : 'Nhập số lượng (+/-)'}
+                    />
+                    {adjustmentQuantity !== 0 && (
+                      <div className="mt-2 p-3 bg-slate-50 rounded-lg">
+                        <p className="text-sm text-slate-700">
+                          <span className="font-semibold">Số lượng cũ:</span> {formatWeight(Number(inventoryProduct.stock_quantity))}
+                        </p>
+                        <p className="text-sm text-slate-700 mt-1">
+                          <span className="font-semibold">Thay đổi:</span>{' '}
+                          <span className={adjustmentType === 'loss' ? 'text-red-600' : adjustmentQuantity > 0 ? 'text-green-600' : 'text-red-600'}>
+                            {adjustmentType === 'loss' ? '-' : adjustmentType === 'import' ? '+' : adjustmentQuantity > 0 ? '+' : ''}{Math.abs(adjustmentQuantity)} kg
+                          </span>
+                        </p>
+                        <p className="text-sm font-semibold mt-1">
+                          <span className="text-slate-700">Số lượng mới:</span>{' '}
+                          <span className="text-emerald-600">
+                            {formatWeight(
+                              Number(inventoryProduct.stock_quantity) +
+                              (adjustmentType === 'loss' ? -Math.abs(adjustmentQuantity) : adjustmentType === 'import' ? Math.abs(adjustmentQuantity) : adjustmentQuantity)
+                            )}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú</label>
+                    <textarea
+                      value={adjustmentNotes}
+                      onChange={(e) => setAdjustmentNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Ghi chú về lý do điều chỉnh..."
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowInventoryModal(false)}
+                      className="flex-1 px-6 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <PackagePlus className="w-5 h-5" />
+                      Xác nhận
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Right: Inventory Logs */}
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <History className="w-5 h-5" />
+                  Lịch sử điều chỉnh
+                </h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  {inventoryLogs.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-8">Chưa có lịch sử điều chỉnh</p>
+                  ) : (
+                    inventoryLogs.map((log, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                log.type === 'import' ? 'bg-green-100 text-green-700' :
+                                log.type === 'sale' ? 'bg-blue-100 text-blue-700' :
+                                log.type === 'adjust' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {log.type === 'import' ? 'Nhập hàng' :
+                                 log.type === 'sale' ? 'Bán hàng' :
+                                 log.type === 'adjust' ? 'Điều chỉnh' : 'Hao hụt'}
+                              </span>
+                              <span className={`text-sm font-semibold ${
+                                log.weight_change > 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {log.weight_change > 0 ? '+' : ''}{log.weight_change} kg
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-1">
+                              Tồn kho: {log.stock_after} kg
+                            </p>
+                            {log.notes && (
+                              <p className="text-xs text-slate-500 mt-1">{log.notes}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {new Date(log.created_at).toLocaleString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

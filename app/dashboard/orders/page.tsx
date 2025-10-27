@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ordersAPI, formatCurrency, formatWeight, Order } from '@/lib/seafood-api';
 import { ShoppingCart, Search, Filter, X, ChevronDown, ChevronRight, Phone, User, MapPin, Eye } from 'lucide-react';
@@ -26,7 +26,19 @@ export default function OrdersPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const ordersData = await ordersAPI.list({ limit: 1000 });
+      // Sale xem TẤT CẢ đơn hàng
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/seafood/orders/by-role/sale`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load orders');
+      }
+
+      const ordersData = await response.json();
       setOrders(ordersData);
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -73,13 +85,21 @@ export default function OrdersPage() {
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       pending: 'bg-yellow-100 text-yellow-700',
-      processing: 'bg-blue-100 text-blue-700',
+      pending_sale_confirm: 'bg-orange-100 text-orange-700',
+      confirmed: 'bg-blue-100 text-blue-700',
+      assigned_to_warehouse: 'bg-indigo-100 text-indigo-700',
+      weighing: 'bg-purple-100 text-purple-700',
+      weighed: 'bg-cyan-100 text-cyan-700',
       completed: 'bg-emerald-100 text-emerald-700',
       cancelled: 'bg-red-100 text-red-700',
     };
     const labels: Record<string, string> = {
       pending: 'Chờ xử lý',
-      processing: 'Đang xử lý',
+      pending_sale_confirm: 'Chờ Sale xác nhận',
+      confirmed: 'Đã xác nhận',
+      assigned_to_warehouse: 'Đã giao kho',
+      weighing: 'Đang cân',
+      weighed: 'Đã cân xong',
       completed: 'Hoàn thành',
       cancelled: 'Đã hủy',
     };
@@ -327,9 +347,9 @@ export default function OrdersPage() {
                     const isExpanded = expandedRows.has(order.id);
 
                     return (
-                      <>
+                      <React.Fragment key={order.id}>
                         {/* Main Row */}
-                        <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                        <tr className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3">
                             <button
                               onClick={() => toggleRow(order.id)}
@@ -501,7 +521,7 @@ export default function OrdersPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     );
                   })
                 )}

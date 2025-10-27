@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { productsAPI, ordersAPI, categoriesAPI, formatCurrency, Seafood, Category, OrderItem } from '@/lib/seafood-api';
 import { Search, Plus, Trash2, ShoppingCart, User, Save, X } from 'lucide-react';
+import { toast } from 'sonner';
+import AddressSelector, { AddressComponents } from '@/components/AddressSelector';
 
 const getUnitLabel = (unitType: string) => {
   switch (unitType) {
@@ -13,6 +16,7 @@ const getUnitLabel = (unitType: string) => {
 };
 
 export default function POSPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Seafood[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<OrderItem[]>([]);
@@ -27,6 +31,8 @@ export default function POSPage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerAddressComponents, setCustomerAddressComponents] = useState<AddressComponents | null>(null);
+  const [customerSource, setCustomerSource] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [discount, setDiscount] = useState<number>(0);
   const [orderNotes, setOrderNotes] = useState('');
@@ -82,7 +88,7 @@ export default function POSPage() {
         const item: OrderItem = {
           seafood_id: product.id,
           seafood: product,
-          quantity: product.unit_type === 'kg' ? undefined : 1,
+          quantity: 1,
           weight: product.unit_type === 'kg' ? 0.5 : (product.avg_unit_weight || 0),
           unit_price: Number(product.current_price),
           notes: '',
@@ -107,18 +113,35 @@ export default function POSPage() {
     const item = updated[index];
 
     if (field === 'quantity') {
-      const qty = Math.max(0, parseFloat(value) || 0);
-      item.quantity = qty;
-      if (item.seafood?.avg_unit_weight) {
-        item.weight = qty * item.seafood.avg_unit_weight;
+      // Allow empty string for better UX while typing
+      if (value === '' || value === null || value === undefined) {
+        item.quantity = undefined;
+      } else {
+        const qty = Math.max(0, parseFloat(value));
+        item.quantity = isNaN(qty) ? undefined : qty;
+        if (!isNaN(qty) && item.seafood?.avg_unit_weight) {
+          item.weight = qty * item.seafood.avg_unit_weight;
+        }
       }
     } else if (field === 'weight') {
-      item.weight = Math.max(0, parseFloat(value) || 0);
+      // Allow empty string for better UX while typing
+      if (value === '' || value === null || value === undefined) {
+        item.weight = 0;
+      } else {
+        const weight = Math.max(0, parseFloat(value));
+        item.weight = isNaN(weight) ? 0 : weight;
+      }
     } else if (field === 'notes') {
       item.notes = value;
     }
 
     setCart(updated);
+  };
+
+  // Handle address change from AddressSelector
+  const handleAddressChange = (fullAddress: string, components: AddressComponents) => {
+    setCustomerAddress(fullAddress);
+    setCustomerAddressComponents(components);
   };
 
   // Calculate totals
@@ -128,18 +151,18 @@ export default function POSPage() {
   // Process order
   const processOrder = async () => {
     if (!customerPhone) {
-      alert('Vui lòng nhập số điện thoại khách hàng!');
+      toast.error('Vui lòng nhập số điện thoại khách hàng!');
       return;
     }
 
     if (cart.length === 0) {
-      alert('Vui lòng thêm sản phẩm vào giỏ hàng!');
+      toast.error('Vui lòng thêm sản phẩm vào giỏ hàng!');
       return;
     }
 
     const hasInvalidWeight = cart.some(item => !item.weight || item.weight <= 0);
     if (hasInvalidWeight) {
-      alert('Vui lòng nhập cân nặng cho tất cả sản phẩm!');
+      toast.error('Vui lòng nhập cân nặng cho tất cả sản phẩm!');
       return;
     }
 
@@ -150,8 +173,9 @@ export default function POSPage() {
         customer_phone: customerPhone,
         customer_name: customerName,
         customer_address: customerAddress,
+        customer_source: customerSource,
         payment_method: paymentMethod,
-        payment_status: 'paid',
+        payment_status: 'unpaid', // Mặc định chưa thanh toán, staff sẽ đánh dấu đã thu tiền
         discount_amount: discount,
         notes: orderNotes,
         items: cart.map(item => ({
@@ -165,19 +189,29 @@ export default function POSPage() {
 
       const order = await ordersAPI.create(orderData);
 
-      alert(`✅ Đơn hàng ${order.order_code} đã được tạo thành công!\n\nTổng tiền: ${formatCurrency(order.total_amount)}`);
+      toast.success(`Đơn hàng ${order.order_code} đã được tạo thành công!`);
 
       // Reset
       setCart([]);
       setCustomerPhone('');
       setCustomerName('');
       setCustomerAddress('');
+      setCustomerAddressComponents(null);
+      setCustomerSource('');
       setDiscount(0);
       setOrderNotes('');
+      setPaymentMethod('cash');
       loadData();
 
+      // If payment method is bank_transfer, redirect to order detail to show QR
+      if (paymentMethod === 'bank_transfer') {
+        setTimeout(() => {
+          router.push(`/dashboard/orders/${order.id}`);
+        }, 1000);
+      }
+
     } catch (error: any) {
-      alert('❌ Lỗi tạo đơn hàng: ' + error.message);
+      toast.error('Lỗi tạo đơn hàng: ' + error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -264,25 +298,22 @@ export default function POSPage() {
                             </span>
                           </td>
                           <td className="px-4 py-4">
-                            {item.seafood?.unit_type !== 'kg' ? (
-                              <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={item.quantity || 0}
-                                onChange={(e) => updateCartItem(index, 'quantity', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                              />
-                            ) : (
-                              <span className="text-gray-400 text-sm">-</span>
-                            )}
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={item.quantity !== undefined ? item.quantity : ''}
+                              onChange={(e) => updateCartItem(index, 'quantity', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                              placeholder="Số lượng"
+                            />
                           </td>
                           <td className="px-4 py-4">
                             <input
                               type="number"
                               step="0.1"
                               min="0"
-                              value={item.weight || 0}
+                              value={item.weight !== undefined ? item.weight : ''}
                               onChange={(e) => updateCartItem(index, 'weight', e.target.value)}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             />
@@ -384,27 +415,37 @@ export default function POSPage() {
                     />
                   </div>
 
+                  <AddressSelector
+                    onAddressChange={handleAddressChange}
+                    initialAddress={customerAddress}
+                    className=""
+                    required={false}
+                  />
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
-                    <textarea
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      placeholder="Địa chỉ giao hàng..."
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nguồn khách hàng</label>
+                    <select
+                      value={customerSource}
+                      onChange={(e) => setCustomerSource(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Chọn nguồn --</option>
+                      <option value="telephone">Điện thoại</option>
+                      <option value="facebook">Facebook</option>
+                      <option value="zalo">Zalo</option>
+                    </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Thanh toán</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phương thức thanh toán</label>
                     <select
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="cash">Tiền mặt</option>
-                      <option value="transfer">Chuyển khoản</option>
-                      <option value="momo">MoMo</option>
+                      <option value="cash">💵 Tiền mặt</option>
+                      <option value="bank_transfer">🏦 Chuyển khoản (VietQR)</option>
+                      <option value="cod">📦 Tiền khi nhận hàng</option>
                     </select>
                   </div>
 
