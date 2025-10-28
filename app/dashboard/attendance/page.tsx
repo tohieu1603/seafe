@@ -30,10 +30,15 @@ export default function AttendanceManagementPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    user_id: string;
+    date: string;
+    status: 'present' | 'absent' | 'half_day' | 'leave';
+    notes: string;
+  }>({
     user_id: '',
     date: new Date().toISOString().slice(0, 10),
-    status: 'present' as const,
+    status: 'present',
     notes: '',
   });
 

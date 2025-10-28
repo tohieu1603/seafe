@@ -145,7 +145,7 @@ export default function POSPage() {
   };
 
   // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
+  const subtotal = cart.reduce((sum, item) => sum + ((item.weight || 0) * item.unit_price), 0);
   const total = subtotal - discount;
 
   // Process order
@@ -313,7 +313,7 @@ export default function POSPage() {
                               type="number"
                               step="0.1"
                               min="0"
-                              value={item.weight !== undefined ? item.weight : ''}
+                              value={item.weight !== null && item.weight !== undefined ? item.weight : ''}
                               onChange={(e) => updateCartItem(index, 'weight', e.target.value)}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             />
@@ -333,7 +333,7 @@ export default function POSPage() {
                           </td>
                           <td className="px-4 py-4 text-right">
                             <span className="text-lg font-bold text-indigo-600">
-                              {formatCurrency(item.weight * item.unit_price)}
+                              {formatCurrency((item.weight || 0) * item.unit_price)}
                             </span>
                           </td>
                           <td className="px-4 py-4 text-center">

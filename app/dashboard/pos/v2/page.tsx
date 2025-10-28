@@ -129,7 +129,7 @@ export default function POSPageV2() {
   };
 
   // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
+  const subtotal = cart.reduce((sum, item) => sum + ((item.weight || 0) * item.unit_price), 0);
   const total = subtotal - discount;
 
   // Submit order
@@ -321,7 +321,7 @@ export default function POSPageV2() {
                           </td>
                           <td className="px-4 py-4 text-right">
                             <span className="text-lg font-bold text-indigo-600">
-                              {formatCurrency(item.weight * item.unit_price)}
+                              {formatCurrency((item.weight || 0) * item.unit_price)}
                             </span>
                           </td>
                           <td className="px-4 py-4 text-center">

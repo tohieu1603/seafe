@@ -170,7 +170,7 @@ export default function POSMultiSelectPage() {
   };
 
   // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
+  const subtotal = cart.reduce((sum, item) => sum + ((item.weight || 0) * item.unit_price), 0);
   const total = subtotal - discount;
 
   // Submit order
@@ -325,7 +325,7 @@ export default function POSMultiSelectPage() {
 
                         <div className="pt-3 mt-3 border-t border-gray-200">
                           <span className="text-sm font-bold text-blue-600">
-                            {formatCurrency(item.weight * item.unit_price)}
+                            {formatCurrency((item.weight || 0) * item.unit_price)}
                           </span>
                         </div>
                       </div>

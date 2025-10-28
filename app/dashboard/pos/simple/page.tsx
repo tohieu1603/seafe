@@ -117,7 +117,7 @@ export default function POSSimplePage() {
     setCart(cart.filter((_, i) => i !== index));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
+  const subtotal = cart.reduce((sum, item) => sum + ((item.weight || 0) * item.unit_price), 0);
   const total = subtotal - discount;
 
   const submitOrder = async () => {
@@ -234,7 +234,7 @@ export default function POSSimplePage() {
                         {formatCurrency(item.unit_price)}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-blue-600">
-                        {formatCurrency(item.weight * item.unit_price)}
+                        {formatCurrency((item.weight || 0) * item.unit_price)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
