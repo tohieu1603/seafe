@@ -31,6 +31,7 @@ export interface Seafood {
   origin?: string;
   image_url?: string;
   tags: string[];
+  weight_range_options: string[]; // Các khoảng cân customer có thể chọn
   status: string;
   created_at: string;
 }
@@ -66,9 +67,11 @@ export interface OrderItem {
   seafood?: Seafood;
   import_batch_id?: string;
   quantity?: number;
-  weight: number;
+  estimated_weight_range?: string; // Khoảng cân ước tính customer chọn
+  weight?: number | null; // Cân nặng thực tế - NULL khi chưa cân
   unit_price: number;
   subtotal?: number;
+  weight_image_url?: string;
   notes?: string;
 }
 

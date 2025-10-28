@@ -110,7 +110,8 @@ export default function PublicOrderPage() {
           seafood_id: product.id,
           seafood: product,
           quantity: 1,
-          weight: product.unit_type === 'kg' ? 0.5 : (product.avg_unit_weight || 0),
+          estimated_weight_range: '', // Customer sẽ chọn khoảng cân
+          weight: null, // Chưa có weight thực tế (chưa cân)
           unit_price: Number(product.current_price),
           notes: '',
         };
@@ -127,18 +128,20 @@ export default function PublicOrderPage() {
     setCart(cart.filter((_, i) => i !== index));
   };
 
-  const updateCartItem = (index: number, field: 'quantity' | 'weight' | 'notes', value: any) => {
+  const updateCartItem = (index: number, field: 'quantity' | 'weight' | 'estimated_weight_range' | 'notes', value: any) => {
     const updated = [...cart];
     const item = updated[index];
 
     if (field === 'quantity') {
       item.quantity = Math.max(1, parseInt(value) || 1);
+    } else if (field === 'estimated_weight_range') {
+      item.estimated_weight_range = value;
     } else if (field === 'weight') {
       if (value === '' || value === null || value === undefined) {
-        item.weight = 0;
+        item.weight = null;
       } else {
         const weight = Math.max(0, parseFloat(value));
-        item.weight = isNaN(weight) ? 0 : weight;
+        item.weight = isNaN(weight) ? null : weight;
       }
     } else if (field === 'notes') {
       item.notes = value;
@@ -147,7 +150,43 @@ export default function PublicOrderPage() {
     setCart(updated);
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.weight * item.unit_price), 0);
+  const sanitizeDecimalInput = (value: string) => value.replace(/,/g, '.');
+  const isValidDecimalInput = (value: string) => value === '' || /^\d*\.?\d*$/.test(value);
+
+  // Helper function to parse weight range (e.g., "2-5kg" -> {min: 2, max: 5})
+  const parseWeightRange = (range: string): { min: number; max: number } | null => {
+    if (!range) return null;
+    const match = range.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
+    if (!match) return null;
+    return { min: parseFloat(match[1]), max: parseFloat(match[2]) };
+  };
+
+  // Calculate estimated price range for an item
+  const getEstimatedPriceRange = (item: OrderItem): { min: number; max: number } | null => {
+    if (!item.estimated_weight_range) return null;
+    const range = parseWeightRange(item.estimated_weight_range);
+    if (!range) return null;
+    return {
+      min: range.min * item.unit_price,
+      max: range.max * item.unit_price,
+    };
+  };
+
+  // Calculate total estimated price range
+  const totalEstimatedRange = cart.reduce((acc, item) => {
+    const priceRange = getEstimatedPriceRange(item);
+    if (!priceRange) return acc;
+    return {
+      min: acc.min + priceRange.min,
+      max: acc.max + priceRange.max,
+    };
+  }, { min: 0, max: 0 });
+
+  const subtotal = cart.reduce((sum, item) => {
+    // Chỉ tính tổng cho item đã có weight (đã cân xong)
+    const weight = item.weight || 0;
+    return sum + (weight * item.unit_price);
+  }, 0);
 
   const processOrder = async () => {
     if (!customerPhone) {
@@ -160,9 +199,10 @@ export default function PublicOrderPage() {
       return;
     }
 
-    const hasInvalidWeight = cart.some(item => !item.weight || item.weight <= 0);
-    if (hasInvalidWeight) {
-      alert('Vui lòng nhập cân nặng cho tất cả sản phẩm!');
+    // Kiểm tra xem đã chọn khoảng cân cho tất cả sản phẩm chưa
+    const hasInvalidWeightRange = cart.some(item => !item.estimated_weight_range || item.estimated_weight_range === '');
+    if (hasInvalidWeightRange) {
+      alert('Vui lòng chọn khoảng cân cho tất cả sản phẩm!');
       return;
     }
 
@@ -181,7 +221,8 @@ export default function PublicOrderPage() {
         items: cart.map(item => ({
           seafood_id: item.seafood_id,
           quantity: item.quantity,
-          weight: item.weight,
+          estimated_weight_range: item.estimated_weight_range,
+          weight: item.weight, // null khi customer tạo đơn
           unit_price: item.unit_price,
           notes: item.notes || '',
         })),
@@ -430,28 +471,98 @@ export default function PublicOrderPage() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Cân nặng (kg) *
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            Khoảng cân ước tính *
                           </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={item.weight || ''}
-                            onChange={(e) => updateCartItem(idx, 'weight', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            placeholder="0.0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Thành tiền
-                          </label>
-                          <div className="px-3 py-2 bg-gray-100 rounded-lg font-semibold text-indigo-600">
-                            {formatCurrency(item.weight * item.unit_price)}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Từ (kg)</label>
+                              <input
+                                type="number"
+                                step={0.1}
+                                inputMode="decimal"
+                                value={(() => {
+                                  const range = parseWeightRange(item.estimated_weight_range || '');
+                                  return range ? range.min : '';
+                                })()}
+                                onChange={(e) => {
+                                  const sanitized = sanitizeDecimalInput(e.target.value);
+                                  if (isValidDecimalInput(sanitized)) {
+                                    const range = parseWeightRange(item.estimated_weight_range || '');
+                                    const maxVal = range?.max !== undefined ? range.max.toString() : '';
+
+                                    if (sanitized && maxVal) {
+                                      updateCartItem(idx, 'estimated_weight_range', `${sanitized}-${maxVal}kg`);
+                                    } else if (sanitized) {
+                                      // Only min value entered, set max same as min temporarily
+                                      updateCartItem(idx, 'estimated_weight_range', `${sanitized}-${sanitized}kg`);
+                                    } else {
+                                      // Cleared input
+                                      updateCartItem(idx, 'estimated_weight_range', '');
+                                    }
+                                  }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                placeholder="2.5"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Đến (kg)</label>
+                              <input
+                                type="number"
+                                step={0.1}
+                                inputMode="decimal"
+                                value={(() => {
+                                  const range = parseWeightRange(item.estimated_weight_range || '');
+                                  return range ? range.max : '';
+                                })()}
+                                onChange={(e) => {
+                                  const sanitized = sanitizeDecimalInput(e.target.value);
+                                  if (isValidDecimalInput(sanitized)) {
+                                    const range = parseWeightRange(item.estimated_weight_range || '');
+                                    const minVal = range?.min !== undefined ? range.min.toString() : '';
+
+                                    if (minVal && sanitized) {
+                                      updateCartItem(idx, 'estimated_weight_range', `${minVal}-${sanitized}kg`);
+                                    } else if (sanitized) {
+                                      // Only max value entered, set min same as max temporarily
+                                      updateCartItem(idx, 'estimated_weight_range', `${sanitized}-${sanitized}kg`);
+                                    } else if (minVal) {
+                                      // Cleared max, keep min
+                                      updateCartItem(idx, 'estimated_weight_range', `${minVal}-${minVal}kg`);
+                                    } else {
+                                      // Both cleared
+                                      updateCartItem(idx, 'estimated_weight_range', '');
+                                    }
+                                  }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                placeholder="5"
+                              />
+                            </div>
                           </div>
+                          {item.estimated_weight_range && (() => {
+                            const priceRange = getEstimatedPriceRange(item);
+                            const weightRange = parseWeightRange(item.estimated_weight_range);
+                            return priceRange && weightRange ? (
+                              <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs text-blue-700 font-medium">Khoảng cân:</p>
+                                    <p className="text-sm font-semibold text-blue-900">{weightRange.min}kg - {weightRange.max}kg</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-blue-700 font-medium">Giá ước tính:</p>
+                                    <p className="text-sm font-semibold text-blue-900">
+                                      {formatCurrency(priceRange.min)} - {formatCurrency(priceRange.max)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
 
@@ -468,10 +579,21 @@ export default function PublicOrderPage() {
                     </div>
                   ))}
 
-                  <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                    <div className="flex justify-between text-xl font-bold">
-                      <span className="text-gray-800">Tổng cộng:</span>
-                      <span className="text-indigo-600">{formatCurrency(subtotal)}</span>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-5 border-2 border-blue-200">
+                    <div className="text-center">
+                      <p className="text-xs text-blue-600 font-medium mb-2">TỔNG GIÁ ƯỚC TÍNH</p>
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <span className="text-2xl font-bold text-blue-700">
+                          {formatCurrency(totalEstimatedRange.min)}
+                        </span>
+                        <span className="text-xl text-blue-500">-</span>
+                        <span className="text-2xl font-bold text-blue-700">
+                          {formatCurrency(totalEstimatedRange.max)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600">
+                        💡 Giá chính xác sẽ được cập nhật sau khi nhân viên cân hàng
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -524,9 +646,8 @@ export default function PublicOrderPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">-- Chọn phương thức --</option>
-                    <option value="cash">Tiền mặt</option>
                     <option value="bank_transfer">Chuyển khoản (VietQR)</option>
-                    <option value="cod">Tiền khi nhận hàng</option>
+                    <option value="cod">Tiền khi nhận hàng (COD)</option>
                   </select>
                 </div>
 

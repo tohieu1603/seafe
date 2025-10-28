@@ -93,25 +93,39 @@ export function formatFullAddress(
   province: Province | null,
   streetAddress?: string
 ): string {
-  const parts = [];
+  const parts: string[] = [];
 
-  if (streetAddress?.trim()) {
+  // Add street address if provided
+  if (streetAddress && streetAddress.trim()) {
     parts.push(streetAddress.trim());
   }
 
+  // Add ward name if selected (prefer full_name, fallback to name)
   if (ward) {
-    parts.push(ward.full_name);
+    const wardName = ward.full_name || ward.name;
+    if (wardName) {
+      parts.push(wardName);
+    }
   }
 
+  // Add district name if selected (prefer full_name, fallback to name)
   if (district) {
-    parts.push(district.full_name);
+    const districtName = district.full_name || district.name;
+    if (districtName) {
+      parts.push(districtName);
+    }
   }
 
+  // Add province name if selected (prefer full_name, fallback to name)
   if (province) {
-    parts.push(province.full_name);
+    const provinceName = province.full_name || province.name;
+    if (provinceName) {
+      parts.push(provinceName);
+    }
   }
 
-  return parts.join(', ');
+  // Filter out any empty/null values and join with comma
+  return parts.filter(p => p && p.trim()).join(', ');
 }
 
 /**

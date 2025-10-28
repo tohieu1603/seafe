@@ -257,7 +257,7 @@ export default function ProductsPage() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8003/api/seafood/products/import-excel', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/seafood/products/import-excel`, {
         method: 'POST',
         body: formData,
       });
