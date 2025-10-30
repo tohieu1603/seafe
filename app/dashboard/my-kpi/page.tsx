@@ -145,6 +145,31 @@ export default function StaffKPIPage() {
     setExpandedMonths(newExpanded);
   };
 
+  const handleExportExcel = async () => {
+    if (!selectedMonth || !userProfile) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/users/my-attendance/export-excel?year=${selectedMonth.year}&month=${selectedMonth.month}`
+      );
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cham_cong_${userProfile.full_name.replace(' ', '_')}_${selectedMonth.month}_${selectedMonth.year}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('❌ Lỗi khi xuất file Excel');
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
   };
@@ -258,12 +283,20 @@ export default function StaffKPIPage() {
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
         <div className="mb-4 flex justify-between items-center">
           <h3 className="text-lg font-semibold">Lịch chấm công - Tháng {month}/{year}</h3>
-          <button
-            onClick={() => setShowCalendar(false)}
-            className="text-sm text-slate-600 hover:text-slate-800"
-          >
-            Đóng
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportExcel}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+            >
+              Xuất Excel
+            </button>
+            <button
+              onClick={() => setShowCalendar(false)}
+              className="text-sm text-slate-600 hover:text-slate-800"
+            >
+              Đóng
+            </button>
+          </div>
         </div>
 
         {/* Calendar header */}
