@@ -78,6 +78,7 @@ export default function OrderDetailPage() {
   const [editImageFile, setEditImageFile] = useState<File | null>(null)
   const [uploadingImage, setUploadingImage] = useState<string | null>(null)
   const [shippingNotes, setShippingNotes] = useState('')
+  const [showQRCode, setShowQRCode] = useState(true)
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -141,14 +142,34 @@ export default function OrderDetailPage() {
 
   const handleSaveItem = async (itemId: string) => {
     try {
+      // Validate inputs
+      if (!editWeight || !editPrice) {
+        toast.error('Vui lòng nhập đầy đủ trọng lượng và đơn giá')
+        return
+      }
+
+      const weight = parseFloat(editWeight)
+      const price = parseFloat(editPrice)
+
+      if (isNaN(weight) || weight <= 0) {
+        toast.error('Trọng lượng phải là số dương')
+        return
+      }
+
+      if (isNaN(price) || price <= 0) {
+        toast.error('Đơn giá phải là số dương')
+        return
+      }
+
       // 1. Update weight and price
       const response = await fetch(
-        `${API_URL}/seafood/orders/${order?.id}/update-item?item_id=${itemId}&weight=${editWeight}&unit_price=${editPrice}`,
+        `${API_URL}/seafood/orders/${order?.id}/update-item?item_id=${itemId}&weight=${weight}&unit_price=${price}`,
         { method: 'POST' }
       )
 
       if (!response.ok) {
-        toast.error('Không thể cập nhật sản phẩm')
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || 'Không thể cập nhật sản phẩm')
         return
       }
 
@@ -803,28 +824,46 @@ export default function OrderDetailPage() {
 
                   {/* VietQR Code for bank transfer */}
                   {order.payment_method === 'bank_transfer' && order.payment_status !== 'paid' && (
-                    <div className="mt-4 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
-                      <div className="text-center">
-                        <h4 className="font-semibold text-indigo-900 mb-2">Quét mã QR để thanh toán</h4>
-                        <div className="bg-white p-3 rounded-lg inline-block shadow-sm">
-                          <img
-                            src={generateOrderQR(order.order_code, order.total_amount)}
-                            alt="VietQR Code"
-                            className="w-64 h-64 mx-auto"
-                          />
+                    <div className="mt-4">
+                      {!showQRCode ? (
+                        <button
+                          onClick={() => setShowQRCode(true)}
+                          className="w-full px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium rounded-lg transition-colors"
+                        >
+                          Hiển thị mã QR thanh toán
+                        </button>
+                      ) : (
+                        <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 relative">
+                          <button
+                            onClick={() => setShowQRCode(false)}
+                            className="absolute top-2 right-2 p-1.5 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-colors"
+                            title="Ẩn mã QR"
+                          >
+                            <X size={18} />
+                          </button>
+                          <div className="text-center">
+                            <h4 className="font-semibold text-indigo-900 mb-2">Quét mã QR để thanh toán</h4>
+                            <div className="bg-white p-3 rounded-lg inline-block shadow-sm">
+                              <img
+                                src={generateOrderQR(order.order_code, order.total_amount)}
+                                alt="VietQR Code"
+                                className="w-64 h-64 mx-auto"
+                              />
+                            </div>
+                            <p className="text-sm text-slate-600 mt-3">
+                              Quét mã QR bằng ứng dụng ngân hàng để thanh toán
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Nội dung: <span className="font-mono font-semibold">Thanh toan {order.order_code}</span>
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-indigo-200">
+                              <p className="text-xs text-slate-600">
+                                Sau khi chuyển khoản, vui lòng nhấn nút "Đánh dấu đã thu tiền" bên dưới
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-sm text-slate-600 mt-3">
-                          Quét mã QR bằng ứng dụng ngân hàng để thanh toán
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Nội dung: <span className="font-mono font-semibold">Thanh toan {order.order_code}</span>
-                        </p>
-                        <div className="mt-3 pt-3 border-t border-indigo-200">
-                          <p className="text-xs text-slate-600">
-                            Sau khi chuyển khoản, vui lòng nhấn nút "Đánh dấu đã thu tiền" bên dưới
-                          </p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
 

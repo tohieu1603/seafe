@@ -6,6 +6,8 @@ import {
   Search, Filter, ChevronDown, ChevronRight, Calculator, FileText, Eye
 } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003';
+
 interface PayrollSummary {
   total_employees: number;
   total_gross_salary: number;
@@ -55,14 +57,14 @@ export default function PayrollManagementPage() {
       setLoading(true);
 
       // Load summary
-      const summaryRes = await fetch(`http://localhost:8003/api/payroll/summary?year=${year}&month=${month}`);
+      const summaryRes = await fetch(`${API_URL}/api/payroll/summary?year=${year}&month=${month}`);
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json();
         setSummary(summaryData);
       }
 
       // Load employees
-      const employeesRes = await fetch(`http://localhost:8003/api/payroll/employees-summary?year=${year}&month=${month}`);
+      const employeesRes = await fetch(`${API_URL}/api/payroll/employees-summary?year=${year}&month=${month}`);
       if (employeesRes.ok) {
         const employeesData = await employeesRes.json();
         setEmployees(employeesData);
@@ -79,7 +81,7 @@ export default function PayrollManagementPage() {
 
     try {
       setCalculating(true);
-      const response = await fetch('http://localhost:8003/api/payroll/calculate-bulk', {
+      const response = await fetch(`${API_URL}/api/payroll/calculate-bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ year, month })
@@ -110,7 +112,7 @@ export default function PayrollManagementPage() {
     if (!confirm(`Duyệt lương cho ${payrollIds.length} nhân viên?`)) return;
 
     try {
-      const response = await fetch('http://localhost:8003/api/payroll/approve', {
+      const response = await fetch(`${API_URL}/api/payroll/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payroll_ids: payrollIds })
@@ -139,7 +141,7 @@ export default function PayrollManagementPage() {
     if (!confirm(`Đánh dấu đã chi trả cho ${payrollIds.length} nhân viên?`)) return;
 
     try {
-      const response = await fetch('http://localhost:8003/api/payroll/mark-paid', {
+      const response = await fetch(`${API_URL}/api/payroll/mark-paid`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payroll_ids: payrollIds })

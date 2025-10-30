@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003';
+
 interface OrderDetail {
   id: string;
   order_code: string;
@@ -87,14 +89,14 @@ export default function StaffKPIPage() {
         setUserProfile(user);
 
         // Load monthly stats for this user
-        const monthlyResponse = await fetch(`http://localhost:8003/api/users/staff/monthly-details/${user.id}?months=6`);
+        const monthlyResponse = await fetch(`${API_URL}/api/users/staff/monthly-details/${user.id}?months=6`);
         if (monthlyResponse.ok) {
           const data = await monthlyResponse.json();
           setMonthlyData(data);
         }
 
         // Load summary
-        const summaryResponse = await fetch(`http://localhost:8003/api/users/staff/kpi-summary?user_id=${user.id}`);
+        const summaryResponse = await fetch(`${API_URL}/api/users/staff/kpi-summary?user_id=${user.id}`);
         if (summaryResponse.ok) {
           const data = await summaryResponse.json();
           setSummary(data);
@@ -111,7 +113,7 @@ export default function StaffKPIPage() {
     if (!userProfile) return;
 
     try {
-      const response = await fetch(`http://localhost:8003/api/users/attendance/calendar/${userProfile.id}?year=${year}&month=${month}`);
+      const response = await fetch(`${API_URL}/api/users/attendance/calendar/${userProfile.id}?year=${year}&month=${month}`);
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);

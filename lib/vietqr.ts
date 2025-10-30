@@ -70,7 +70,7 @@ export const VIETQR_BANKS = [
  */
 export const DEFAULT_BANK_CONFIG: VietQRConfig = {
   bankId: process.env.NEXT_PUBLIC_SEPAY_BANK_ID || '970418',           // BIDV
-  accountNo: process.env.NEXT_PUBLIC_SEPAY_ACCOUNT_NUMBER || '116096779',
+  accountNo: process.env.NEXT_PUBLIC_SEPAY_ACCOUNT_NUMBER || '1160976779',
   accountName: process.env.NEXT_PUBLIC_SEPAY_ACCOUNT_NAME || 'TO TRONG HIEU',
   template: 'compact2'
 };

@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, DollarSign, TrendingUp, Clock, CheckCircle, XCircle } from 'lucide-react';
+import {
+  ArrowLeft, Calendar, DollarSign, TrendingUp, Clock,
+  CheckCircle, XCircle, ChevronLeft, ChevronRight,
+  BarChart3, Package, Target, Award, CalendarDays, Download
+} from 'lucide-react';
 import Link from 'next/link';
 
 interface StaffDetail {
@@ -30,6 +34,10 @@ interface CalendarDay {
   orders_count: number;
 }
 
+interface DayDetail extends CalendarDay {
+  revenue?: number;
+}
+
 export default function StaffKPIDetailPage() {
   const params = useParams();
   const userId = params.id as string;
@@ -39,6 +47,8 @@ export default function StaffKPIDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedDay, setSelectedDay] = useState<DayDetail | null>(null);
+  const [showDayModal, setShowDayModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -95,6 +105,8 @@ export default function StaffKPIDetailPage() {
       off: calendarData.filter(d => d.attendance_type === 'off').length,
       totalOrders: calendarData.reduce((sum, d) => sum + d.orders_count, 0),
       totalHours: calendarData.reduce((sum, d) => sum + d.working_hours, 0),
+      workingDays: calendarData.filter(d => d.attendance_type === 'full').length +
+                   calendarData.filter(d => d.attendance_type === 'half').length * 0.5,
     };
     return stats;
   };
@@ -103,8 +115,10 @@ export default function StaffKPIDetailPage() {
   const getCalendarGrid = () => {
     if (calendarData.length === 0) return [];
 
-    const firstDate = new Date(calendarData[0].date);
+    const firstDate = new Date(selectedYear, selectedMonth - 1, 1);
+    const lastDate = new Date(selectedYear, selectedMonth, 0);
     const startDayOfWeek = firstDate.getDay(); // 0 = Sunday
+    const daysInMonth = lastDate.getDate();
 
     // Add empty slots before the first day
     const grid: (CalendarDay | null)[] = [];
@@ -113,29 +127,49 @@ export default function StaffKPIDetailPage() {
     }
 
     // Add all calendar days
-    grid.push(...calendarData);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const dayData = calendarData.find(d => d.date === dateStr);
+
+      if (dayData) {
+        grid.push(dayData);
+      } else {
+        // Create empty day data for days without attendance records
+        grid.push({
+          date: dateStr,
+          attendance_type: 'off',
+          working_hours: 0,
+          has_orders: false,
+          orders_count: 0,
+        });
+      }
+    }
 
     return grid;
   };
 
   const getDayCellStyle = (day: CalendarDay | null) => {
-    if (!day) return 'bg-transparent border-transparent';
+    if (!day) return 'bg-transparent border-transparent cursor-default';
 
-    // Base style
-    let style = 'border-2 ';
+    const isToday = day.date === new Date().toISOString().split('T')[0];
+    let style = 'border-2 cursor-pointer hover:shadow-md transition-all duration-200 ';
+
+    if (isToday) {
+      style += 'ring-2 ring-primary ring-offset-2 ';
+    }
 
     switch (day.attendance_type) {
       case 'full':
-        style += 'bg-green-50 border-green-200';
+        style += 'bg-success-50 border-success-200 hover:bg-success-100';
         break;
       case 'half':
-        style += 'bg-yellow-50 border-yellow-200';
+        style += 'bg-warning-50 border-warning-200 hover:bg-warning-100';
         break;
       case 'off':
-        style += 'bg-gray-50 border-gray-200';
+        style += 'bg-gray-50 border-gray-200 hover:bg-gray-100';
         break;
       default:
-        style += 'bg-gray-50 border-gray-200';
+        style += 'bg-gray-50 border-gray-200 hover:bg-gray-100';
     }
 
     return style;
@@ -144,9 +178,9 @@ export default function StaffKPIDetailPage() {
   const getStatusIcon = (attendanceType: string) => {
     switch (attendanceType) {
       case 'full':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4 text-success-600" />;
       case 'half':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
+        return <Clock className="w-4 h-4 text-warning-600" />;
       case 'off':
         return <XCircle className="w-4 h-4 text-gray-400" />;
       default:
@@ -154,18 +188,59 @@ export default function StaffKPIDetailPage() {
     }
   };
 
-  const handleMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const [year, month] = e.target.value.split('-').map(Number);
-    setSelectedYear(year);
-    setSelectedMonth(month);
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const handleDayClick = (day: CalendarDay) => {
+    setSelectedDay(day as DayDetail);
+    setShowDayModal(true);
+  };
+
+  const getMonthName = (month: number) => {
+    const monthNames = [
+      'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+      'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'
+    ];
+    return monthNames[month - 1];
+  };
+
+  const getAttendanceLabel = (type: string) => {
+    switch (type) {
+      case 'full': return 'Làm cả ngày';
+      case 'half': return 'Làm nửa ngày';
+      case 'off': return 'Nghỉ';
+      default: return 'Không rõ';
+    }
+  };
+
+  const handleExportExcel = () => {
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/api/users/attendance/calendar/${userId}/export-excel?year=${selectedYear}&month=${selectedMonth}`;
+    window.open(url, '_blank');
   };
 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600">Đang tải dữ liệu...</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+          </div>
         </div>
       </div>
     );
@@ -174,10 +249,15 @@ export default function StaffKPIDetailPage() {
   if (!staff) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-slate-600">Không tìm thấy thông tin nhân viên</p>
-          <Link href="/dashboard/staff-kpi" className="mt-4 inline-block text-blue-600 hover:underline">
-            ← Quay lại danh sách
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <XCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-lg text-gray-600 mb-4">Không tìm thấy thông tin nhân viên</p>
+          <Link
+            href="/dashboard/staff-kpi"
+            className="inline-flex items-center gap-2 text-primary hover:text-primary-600 font-medium"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Quay lại danh sách
           </Link>
         </div>
       </div>
@@ -187,141 +267,220 @@ export default function StaffKPIDetailPage() {
   const attendanceStats = calculateAttendanceStats();
   const calendarGrid = getCalendarGrid();
   const weekDays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-  const currentMonthStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       {/* Header */}
-      <div className="mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <Link
           href="/dashboard/staff-kpi"
-          className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-4"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Quay lại danh sách KPI
+          <span className="font-medium">Quay lại danh sách KPI</span>
         </Link>
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800">{staff.user_name}</h1>
-            <p className="text-slate-600 mt-1">{staff.user_email}</p>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center text-white text-2xl font-bold">
+              {staff.user_name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{staff.user_name}</h1>
+              <p className="text-gray-600">{staff.user_email}</p>
+            </div>
           </div>
-          <div className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium">
-            {staff.user_type === 'admin' ? '👑 Admin' :
-             staff.user_type === 'manager' ? '👔 Manager' :
-             staff.user_type === 'staff' ? '💼 Staff' :
-             staff.user_type === 'accountant' ? '📊 Accountant' : '👤 User'}
+          <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-lg font-medium">
+            {staff.user_type === 'admin' && <><Award className="w-5 h-5" /> Admin</>}
+            {staff.user_type === 'manager' && <><Target className="w-5 h-5" /> Manager</>}
+            {staff.user_type === 'staff' && <><Package className="w-5 h-5" /> Staff</>}
+            {staff.user_type === 'accountant' && <><BarChart3 className="w-5 h-5" /> Accountant</>}
           </div>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Doanh thu hôm nay</p>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(staff.today_revenue)}</p>
-              <p className="text-xs text-green-100 mt-1">Đã nhận: {formatCurrency(staff.today_paid)}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-success-50 rounded-lg">
+              <DollarSign className="w-6 h-6 text-success-600" />
             </div>
-            <DollarSign className="w-12 h-12 opacity-80" />
+            <span className="text-xs font-medium text-gray-500 uppercase">Hôm nay</span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(staff.today_revenue)}</p>
+            <p className="text-sm text-gray-600 mt-1">Đã nhận: {formatCurrency(staff.today_paid)}</p>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm">Doanh thu tuần</p>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(staff.week_revenue)}</p>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <CalendarDays className="w-6 h-6 text-purple-600" />
             </div>
-            <Calendar className="w-12 h-12 opacity-80" />
+            <span className="text-xs font-medium text-gray-500 uppercase">Tuần này</span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(staff.week_revenue)}</p>
+            <p className="text-sm text-gray-600 mt-1">Doanh thu tuần</p>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm">Doanh thu tháng</p>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(staff.month_revenue)}</p>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-warning-50 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-warning-600" />
             </div>
-            <TrendingUp className="w-12 h-12 opacity-80" />
+            <span className="text-xs font-medium text-gray-500 uppercase">Tháng này</span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(staff.month_revenue)}</p>
+            <p className="text-sm text-gray-600 mt-1">Doanh thu tháng</p>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Hiệu suất</p>
-              <p className="text-3xl font-bold mt-1">{staff.service_efficiency.toFixed(1)}%</p>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Target className="w-6 h-6 text-primary" />
             </div>
-            <TrendingUp className="w-12 h-12 opacity-80" />
+            <span className="text-xs font-medium text-gray-500 uppercase">Hiệu suất</span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900">{staff.service_efficiency.toFixed(1)}%</p>
+            <p className="text-sm text-gray-600 mt-1">Tỷ lệ hoàn thành</p>
           </div>
         </div>
       </div>
 
       {/* Orders Stats */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-        <h2 className="text-xl font-bold text-slate-800 mb-4">Thống kê đơn hàng</h2>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê đơn hàng</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-slate-50 rounded-lg">
-            <p className="text-3xl font-bold text-slate-800">{staff.total_orders || 0}</p>
-            <p className="text-sm text-slate-600 mt-1">Tổng đơn hàng</p>
+          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="p-3 bg-gray-200 rounded-lg">
+              <Package className="w-6 h-6 text-gray-700" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{staff.total_orders || 0}</p>
+              <p className="text-sm text-gray-600">Tổng đơn hàng</p>
+            </div>
           </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-3xl font-bold text-green-600">{staff.completed_orders || 0}</p>
-            <p className="text-sm text-slate-600 mt-1">Hoàn thành</p>
+          <div className="flex items-center gap-4 p-4 bg-success-50 rounded-lg">
+            <div className="p-3 bg-success-200 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-success-700" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-success-700">{staff.completed_orders || 0}</p>
+              <p className="text-sm text-gray-600">Hoàn thành</p>
+            </div>
           </div>
-          <div className="text-center p-4 bg-red-50 rounded-lg">
-            <p className="text-3xl font-bold text-red-600">{staff.cancelled_orders || 0}</p>
-            <p className="text-sm text-slate-600 mt-1">Đã hủy</p>
+          <div className="flex items-center gap-4 p-4 bg-danger-50 rounded-lg">
+            <div className="p-3 bg-danger-200 rounded-lg">
+              <XCircle className="w-6 h-6 text-danger-700" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-danger-700">{staff.cancelled_orders || 0}</p>
+              <p className="text-sm text-gray-600">Đã hủy</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Attendance Calendar Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <Calendar className="w-6 h-6" />
-            Lịch làm việc
-          </h2>
-          <input
-            type="month"
-            value={currentMonthStr}
-            onChange={handleMonthChange}
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Attendance Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border-2 border-success-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-5 h-5 text-success-600" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Làm cả ngày</span>
+          </div>
+          <p className="text-3xl font-bold text-success-600">{attendanceStats.full}</p>
         </div>
+        <div className="bg-white rounded-lg shadow-sm border-2 border-warning-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-5 h-5 text-warning-600" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Nửa ngày</span>
+          </div>
+          <p className="text-3xl font-bold text-warning-600">{attendanceStats.half}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <XCircle className="w-5 h-5 text-gray-500" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Nghỉ</span>
+          </div>
+          <p className="text-3xl font-bold text-gray-600">{attendanceStats.off}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border-2 border-primary/30 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarDays className="w-5 h-5 text-primary" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Công thực tế</span>
+          </div>
+          <p className="text-3xl font-bold text-primary">{attendanceStats.workingDays.toFixed(1)}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border-2 border-blue-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="w-5 h-5 text-blue-600" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Tổng đơn</span>
+          </div>
+          <p className="text-3xl font-bold text-blue-600">{attendanceStats.totalOrders}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border-2 border-purple-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-5 h-5 text-purple-600" />
+            <span className="text-xs font-medium text-gray-600 uppercase">Tổng giờ</span>
+          </div>
+          <p className="text-3xl font-bold text-purple-600">{attendanceStats.totalHours.toFixed(1)}h</p>
+        </div>
+      </div>
 
-        {/* Attendance Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
-            <p className="text-2xl font-bold text-green-600">{attendanceStats.full}</p>
-            <p className="text-xs text-slate-600 mt-1">Làm cả ngày</p>
+      {/* Attendance Calendar Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Calendar className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Lịch làm việc</h2>
+              <p className="text-sm text-gray-600">Theo dõi chấm công và hiệu suất hàng ngày</p>
+            </div>
           </div>
-          <div className="text-center p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
-            <p className="text-2xl font-bold text-yellow-600">{attendanceStats.half}</p>
-            <p className="text-xs text-slate-600 mt-1">Nửa ngày</p>
-          </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
-            <p className="text-2xl font-bold text-gray-600">{attendanceStats.off}</p>
-            <p className="text-xs text-slate-600 mt-1">Nghỉ</p>
-          </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-            <p className="text-2xl font-bold text-blue-600">{attendanceStats.totalOrders}</p>
-            <p className="text-xs text-slate-600 mt-1">Tổng đơn</p>
-          </div>
-          <div className="text-center p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-            <p className="text-2xl font-bold text-purple-600">{attendanceStats.totalHours.toFixed(1)}h</p>
-            <p className="text-xs text-slate-600 mt-1">Tổng giờ</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-success-600 hover:bg-success-700 text-white rounded-lg transition-colors font-medium"
+              title="Xuất Excel"
+            >
+              <Download className="w-4 h-4" />
+              <span>Xuất Excel</span>
+            </button>
+            <button
+              onClick={handlePreviousMonth}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Tháng trước"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div className="px-4 py-2 bg-gray-50 rounded-lg">
+              <span className="font-semibold text-gray-900">{getMonthName(selectedMonth)} {selectedYear}</span>
+            </div>
+            <button
+              onClick={handleNextMonth}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Tháng sau"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-600" />
+            </button>
           </div>
         </div>
 
         {/* Calendar Grid */}
-        <div className="bg-slate-50 rounded-lg p-4">
+        <div className="p-6">
           {/* Week day headers */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
+          <div className="grid grid-cols-7 gap-2 mb-3">
             {weekDays.map((day) => (
-              <div key={day} className="text-center font-bold text-slate-600 text-sm py-2">
+              <div key={day} className="text-center font-semibold text-gray-700 text-sm py-2 bg-gray-50 rounded-lg">
                 {day}
               </div>
             ))}
@@ -331,51 +490,55 @@ export default function StaffKPIDetailPage() {
           <div className="grid grid-cols-7 gap-2">
             {calendarGrid.map((day, index) => {
               if (!day) {
-                return <div key={`empty-${index}`} className="min-h-[100px]"></div>;
+                return <div key={`empty-${index}`} className="aspect-square"></div>;
               }
 
               const dayDate = new Date(day.date);
               const dayNum = dayDate.getDate();
               const isToday = day.date === new Date().toISOString().split('T')[0];
+              const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
 
               return (
                 <div
                   key={day.date}
+                  onClick={() => handleDayClick(day)}
                   className={`
-                    min-h-[100px] p-3 rounded-lg transition-all
+                    aspect-square p-2 rounded-lg transition-all
                     ${getDayCellStyle(day)}
-                    ${isToday ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                    ${isWeekend ? 'bg-opacity-50' : ''}
                   `}
                 >
                   <div className="flex flex-col h-full">
-                    {/* Day number */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-lg font-semibold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
+                    {/* Day number and status */}
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-sm font-bold ${isToday ? 'text-primary' : 'text-gray-700'}`}>
                         {dayNum}
                       </span>
                       {getStatusIcon(day.attendance_type)}
                     </div>
 
-                    {/* Orders and hours info */}
-                    <div className="flex-1 flex flex-col gap-1 text-sm">
+                    {/* Info */}
+                    <div className="flex-1 flex flex-col gap-0.5 text-xs">
                       {day.orders_count > 0 && (
                         <div className="flex items-center gap-1">
-                          <span className="text-green-600 font-medium">
-                            {day.orders_count} đơn
+                          <Package className="w-3 h-3 text-success-600" />
+                          <span className="text-success-700 font-medium">
+                            {day.orders_count}
                           </span>
                         </div>
                       )}
 
                       {day.working_hours > 0 && (
                         <div className="flex items-center gap-1">
-                          <span className="text-orange-600 font-medium">
+                          <Clock className="w-3 h-3 text-warning-600" />
+                          <span className="text-warning-700 font-medium">
                             {day.working_hours}h
                           </span>
                         </div>
                       )}
 
                       {day.check_in_time && day.check_out_time && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-[10px] text-gray-500 mt-auto">
                           {day.check_in_time.slice(0, 5)} - {day.check_out_time.slice(0, 5)}
                         </div>
                       )}
@@ -385,24 +548,108 @@ export default function StaffKPIDetailPage() {
               );
             })}
           </div>
-        </div>
 
-        {/* Legend */}
-        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-50 border-2 border-green-200"></div>
-            <span>Làm cả ngày</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-yellow-50 border-2 border-yellow-200"></div>
-            <span>Nửa ngày</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200"></div>
-            <span>Nghỉ</span>
+          {/* Legend */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-success-50 border-2 border-success-200"></div>
+                <span className="text-gray-700">Làm cả ngày</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-warning-50 border-2 border-warning-200"></div>
+                <span className="text-gray-700">Làm nửa ngày</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200"></div>
+                <span className="text-gray-700">Nghỉ</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded border-2 border-primary"></div>
+                <span className="text-gray-700">Hôm nay</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Day Detail Modal */}
+      {showDayModal && selectedDay && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDayModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {new Date(selectedDay.date).toLocaleDateString('vi-VN', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </h3>
+                <button
+                  onClick={() => setShowDayModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Attendance Status */}
+              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                {getStatusIcon(selectedDay.attendance_type)}
+                <div>
+                  <p className="text-sm text-gray-600">Trạng thái</p>
+                  <p className="font-semibold text-gray-900">{getAttendanceLabel(selectedDay.attendance_type)}</p>
+                </div>
+              </div>
+
+              {/* Check in/out times */}
+              {selectedDay.check_in_time && selectedDay.check_out_time && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-success-50 rounded-lg">
+                    <p className="text-xs text-gray-600 mb-1">Giờ vào</p>
+                    <p className="text-lg font-bold text-success-700">{selectedDay.check_in_time.slice(0, 5)}</p>
+                  </div>
+                  <div className="p-4 bg-danger-50 rounded-lg">
+                    <p className="text-xs text-gray-600 mb-1">Giờ ra</p>
+                    <p className="text-lg font-bold text-danger-700">{selectedDay.check_out_time.slice(0, 5)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Working hours */}
+              <div className="p-4 bg-warning-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4 text-warning-600" />
+                  <p className="text-sm text-gray-600">Tổng giờ làm việc</p>
+                </div>
+                <p className="text-2xl font-bold text-warning-700">{selectedDay.working_hours} giờ</p>
+              </div>
+
+              {/* Orders */}
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  <p className="text-sm text-gray-600">Số đơn hàng</p>
+                </div>
+                <p className="text-2xl font-bold text-blue-700">{selectedDay.orders_count} đơn</p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowDayModal(false)}
+                className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

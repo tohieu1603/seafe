@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { productsAPI, categoriesAPI, formatCurrency, formatWeight, Seafood, Category } from '@/lib/seafood-api';
 import { Package, Plus, Edit, Trash2, Search, Filter, X, ChevronDown, ChevronRight, Tag as TagIcon, Upload, Download, FileSpreadsheet, FileText, PackagePlus, History } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003';
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Seafood[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -206,7 +208,7 @@ export default function ProductsPage() {
 
     // Load inventory logs for this product
     try {
-      const response = await fetch(`http://localhost:8003/api/seafood/products/${product.id}/inventory-logs`);
+      const response = await fetch(`${API_URL}/api/seafood/products/${product.id}/inventory-logs`);
       if (response.ok) {
         const logs = await response.json();
         setInventoryLogs(logs);
@@ -223,7 +225,7 @@ export default function ProductsPage() {
     if (!inventoryProduct) return;
 
     try {
-      const response = await fetch(`http://localhost:8003/api/seafood/products/${inventoryProduct.id}/adjust-inventory`, {
+      const response = await fetch(`${API_URL}/api/seafood/products/${inventoryProduct.id}/adjust-inventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,7 +259,7 @@ export default function ProductsPage() {
     formData.append('file', file);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/seafood/products/import-excel`, {
+      const response = await fetch(`${API_URL}/api/seafood/products/import-excel`, {
         method: 'POST',
         body: formData,
       });
@@ -281,7 +283,7 @@ export default function ProductsPage() {
 
   const handleExportExcel = async () => {
     try {
-      const response = await fetch('http://localhost:8003/api/seafood/products/export-excel');
+      const response = await fetch(`${API_URL}/api/seafood/products/export-excel`);
       if (!response.ok) throw new Error('Export failed');
 
       const blob = await response.blob();
@@ -301,7 +303,7 @@ export default function ProductsPage() {
 
   const handleExportPDF = async () => {
     try {
-      const response = await fetch('http://localhost:8003/api/seafood/products/export-pdf');
+      const response = await fetch(`${API_URL}/api/seafood/products/export-pdf`);
       if (!response.ok) throw new Error('Export failed');
 
       const blob = await response.blob();

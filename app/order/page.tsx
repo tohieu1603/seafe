@@ -164,9 +164,18 @@ export default function PublicOrderPage() {
 
   const parseWeightRange = (range: string): { min: number; max: number } | null => {
     if (!range) return null;
-    const match = range.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
-    if (!match) return null;
-    return { min: parseFloat(match[1]), max: parseFloat(match[2]) };
+    // Try to match range format: "2.6-5kg"
+    const rangeMatch = range.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
+    if (rangeMatch) {
+      return { min: parseFloat(rangeMatch[1]), max: parseFloat(rangeMatch[2]) };
+    }
+    // Try to match single value format: "2.6kg"
+    const singleMatch = range.match(/(\d+\.?\d*)/);
+    if (singleMatch) {
+      const value = parseFloat(singleMatch[1]);
+      return { min: value, max: value };
+    }
+    return null;
   };
 
   const getEstimatedPriceRange = (item: OrderItem): { min: number; max: number } | null => {
@@ -495,7 +504,8 @@ export default function PublicOrderPage() {
                                     } else if (value) {
                                       updateCartItem(idx, 'estimated_weight_range', `${value}-${value}kg`);
                                     } else if (minVal) {
-                                      updateCartItem(idx, 'estimated_weight_range', `${minVal}-${minVal}kg`);
+                                      // When only "From" has value but "To" is cleared, keep only the "From" value
+                                      updateCartItem(idx, 'estimated_weight_range', `${minVal}kg`);
                                     } else {
                                       updateCartItem(idx, 'estimated_weight_range', '');
                                     }

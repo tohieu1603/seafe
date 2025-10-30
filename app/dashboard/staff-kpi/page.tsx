@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, TrendingUp, TrendingDown, Calendar as CalendarIcon, DollarSign, Users } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Calendar as CalendarIcon, DollarSign, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface StaffKPI {
@@ -13,6 +13,8 @@ interface StaffKPI {
   week_revenue: number;
   month_revenue: number;
   service_efficiency: number;
+  selected_year?: number;
+  selected_month?: number;
 }
 
 export default function StaffKPIPage() {
@@ -21,22 +23,32 @@ export default function StaffKPIPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'month_revenue' | 'efficiency'>('month_revenue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedYear, selectedMonth]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
 
-      // Fetch all staff KPIs
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/staff/all-kpi-summary`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
+      // Fetch all staff KPIs with year/month filter
+      const params = new URLSearchParams({
+        year: selectedYear.toString(),
+        month: selectedMonth.toString(),
       });
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/users/staff/all-kpi-summary?${params}`,
+        {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -104,6 +116,32 @@ export default function StaffKPIPage() {
     }
   };
 
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const getMonthName = (month: number) => {
+    const monthNames = [
+      'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+      'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'
+    ];
+    return monthNames[month - 1];
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -119,8 +157,33 @@ export default function StaffKPIPage() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800">KPI Nhân viên</h1>
-        <p className="text-slate-600 mt-1">Tổng quan hiệu suất làm việc của toàn bộ nhân viên</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">KPI Nhân viên</h1>
+            <p className="text-slate-600 mt-1">Tổng quan hiệu suất làm việc của toàn bộ nhân viên</p>
+          </div>
+
+          {/* Month/Year Selector */}
+          <div className="flex items-center gap-3 bg-white rounded-lg shadow-sm border border-slate-200 p-2">
+            <button
+              onClick={handlePreviousMonth}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Tháng trước"
+            >
+              <ChevronLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <div className="px-4 py-2 bg-slate-50 rounded-lg min-w-[140px] text-center">
+              <span className="font-semibold text-slate-900">{getMonthName(selectedMonth)} {selectedYear}</span>
+            </div>
+            <button
+              onClick={handleNextMonth}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Tháng sau"
+            >
+              <ChevronRight className="w-5 h-5 text-slate-600" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
